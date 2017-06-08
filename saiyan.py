@@ -19,7 +19,7 @@ def main():
     # Pass init_weight_file ImageNet to use trained ImageNet base model.
     #
 
-    train(model, cifarData, save_weight_file='./cifar_test')
+    train(model, cifarData, save_weight_file='./cifar_test', batch_size=16)
     #train(
     #      model, cifarData, save_weight_file='./cifar_test',
     #      init_weight_file='./cifar_test-0.meta',
@@ -62,6 +62,7 @@ def train(model, data, save_weight_file, init_weight_file=None,
             saver.save(sess, save_weight_file, global_step=e)
 
 # only going to be testing on poses.
+# may work better if the batch size is smaller.
 def test(model, data, weight_file, verbose=False):
     print 'test called'
     with tf.Session() as sess:

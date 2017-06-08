@@ -48,9 +48,10 @@ def create_base_net(lr, os):
 
     images = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
     labels = tf.placeholder(tf.float32, shape=[None,os])
-
-    ximages = zeroPad(images, height=96, width=96)
-
+    #ximages = zeroPad(images, height=96, width=96)
+    ximages = tf.image.resize_images(images, [224,224])
+    #ximages = tf.image.resize_image_with_crop_or_pad()
+    #tf.random_crop()
     # googlenet
 
     conv1_7x7_s2 = conv2d(ximages, 64, shape=[7,7], stride=(2,2))

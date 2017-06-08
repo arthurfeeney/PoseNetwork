@@ -3,7 +3,7 @@ import tensorflow as tf
 # constructs a convolutional of the arguments. Just makes implement a bit easier
 # stride defaults to 1 and padding defaults to SAME
 def conv2d(convInput, numFilters, shape=[3,3], stride=(1,1), padding='SAME'):
-    return tf.nn.elu(batchNormalize(tf.layers.conv2d(
+    return tf.nn.elu(_batchNormalize(tf.layers.conv2d(
                 inputs = convInput,
                 filters = numFilters, # the number of filters/output size
                 kernel_size = shape,  # the size of the conv window
@@ -49,11 +49,11 @@ def inceptUnit(inceptInput, filters):
     return tf.concat((i_1x1, i_3x3, i_5x5_2, pool_proj), axis=-1)
 
 # returns a batch normalization layer.
-def batchNormalize(normInput):
+def _batchNormalize(normInput):
     return tf.layers.batch_normalization(inputs=normInput)
 
 def dense(denseInput, size):
-    return batchNormalize(tf.layers.dense(inputs=denseInput, units=size))
+    return _batchNormalize(tf.layers.dense(inputs=denseInput, units=size))
 
 # constructs a bias variable.
 def biasVariable(shape):
