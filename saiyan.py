@@ -25,8 +25,7 @@ def main():
     model = {
         'images': images,
         'labels': labels,
- 	    'step': step,
-	    'acc': accuracy
+ 	    'step': step,	    'acc': accuracy
     }
 
     #cifar_dir = '/data/zhanglab/afeeney/cifar_model/'
@@ -55,10 +54,10 @@ def main():
     num_classes = 10
 
 
-    trainImages, trainLabels = load_training_data()
-    testImages, testLabels = load_test_data()
+    train_images, train_labels = load_training_data()
+    test_images, test_labels = load_test_data()
 
-    data = Data((trainImages, trainLabels, testImages, testLabels))
+    data = Data((train_images, train_labels, test_images, test_labels))
 
     with tf.Session() as sess:
 
@@ -95,11 +94,10 @@ def main():
 
         batch_size = 32
 
-        for index in range(0, len(data.labels())-batch_size-1, batch_size):
-            data.shuffleData()
-            batch = data.trainBatch(batch_size)
-            #batch[0] = 2*(images/299.0)-1.0
-
+        for index in range(0, data.train_size()-batch_size-1, batch_size):
+            data.shuffle()
+            images, labels = data.get_next_train_batch(batch_size)
+            images[:,:,:] = 2*(images/299.0)-1.0
 
 
             if index % (2 * batch_size) == 0:
@@ -109,12 +107,12 @@ def main():
                             feed_dict = {
                                 feed_tensor: resize.eval(
                                     feed_dict = {
-                                        input_tensor: batch[0]
+                                        input_tensor: images
                                     }
                                 )
                             }
                         ),
-                        end_points['labels']: batch[1]
+                        end_points['labels']: labels
                     }
                 )
                 print(batch_acc)
@@ -125,14 +123,21 @@ def main():
                         feed_dict = {
                             feed_tensor: resize.eval(
                                 feed_dict = {
-                                    input_tensor: batch[0]
+                                    input_tensor: images
                                 }
                             )
                         }
                     ),
-                    end_points['labels']: batch[1]
+                    end_points['labels']: labels
                 }
             )
+
+
+        test_images, test_labels = data.test_set()
+
+
+
+
     print('finished')
 
 if __name__ == "__main__":

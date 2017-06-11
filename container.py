@@ -20,10 +20,10 @@ class Data:
     def remain(self):
         return len(self.__trainLabels) - self.__lastBatchEnd
 
-    def trainSize(self):
+    def train_size(self):
         return len(self.__trainLabels)
 
-    def trainBatch(self, batchSize):
+    def get_next_train_batch(self, batchSize):
         batchIndices = \
             np.array(range(self.__lastBatchEnd, self.__lastBatchEnd+batchSize))
         self.__lastBatchEnd += batchSize
@@ -31,11 +31,11 @@ class Data:
             self.__trainImages[batchIndices], self.__trainLabels[batchIndices]
         )
 
-    def test(self):
+    def test_set(self):
         return self.__testImages, self.__testLabels
 
     # shuffles images and labels together. also resets the index of last batch.
-    def shuffleData(self, shuffleTest = False):
+    def shuffle(self, shuffleTest = False):
         self.__lastBatchEnd = 0
         if not shuffleTest:
             c = list(zip(self.__trainImages, self.__trainLabels))
