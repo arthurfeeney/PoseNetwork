@@ -46,7 +46,7 @@ import download
 
 # Directory where you want to download and save the data-set.
 # Set this before you start calling any of the functions below.
-data_path = "data/CIFAR-10/"
+data_path = "/data/zhanglab/afeeney/CIFAR-10/"
 
 # URL for the data-set on the internet.
 data_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
@@ -107,7 +107,7 @@ def _unpickle(filename):
     with open(file_path, mode='rb') as file:
         # In Python 3.X it is important to set the encoding,
         # otherwise an exception is raised here.
-        data = pickle.load(file)
+        data = pickle.load(file, encoding='latin1')
 
     return data
 
@@ -142,10 +142,10 @@ def _load_data(filename):
     data = _unpickle(filename)
 
     # Get the raw images.
-    raw_images = data[b'data']
+    raw_images = data['data']
 
     # Get the class-numbers for each image. Convert to numpy-array.
-    cls = np.array(data[b'labels'])
+    cls = np.array(data['labels'])
 
     # Convert the images.
     images = _convert_images(raw_images)

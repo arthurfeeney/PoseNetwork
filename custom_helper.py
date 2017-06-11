@@ -1,8 +1,24 @@
 import tensorflow as tf
 
+
+global batch_count
+global bias_count
+def set_batch_count():
+    global batch_count
+    global bias_count
+    batch_count = 0
+    bias_count = 0
+
 # constructs a convolutional of the arguments. Just makes implement a bit easier
 # stride defaults to 1 and padding defaults to SAME
-def conv2d(convInput, numFilters, shape=[3,3], stride=(1,1), padding='SAME'):
+def conv2d(convInput,
+           numFilters,
+           shape=[3,3],
+           stride=(1,1),
+           padding='SAME',
+           name=None):
+    global batch_count
+    batch_count += 1
     return tf.nn.elu(_batchNormalize(tf.layers.conv2d(
                 inputs = convInput,
                 filters = numFilters, # the number of filters/output size
@@ -10,16 +26,18 @@ def conv2d(convInput, numFilters, shape=[3,3], stride=(1,1), padding='SAME'):
                 strides = stride,
                 padding = padding,
                 activation = None, # None here allows me to do it after BN.
-                kernel_regularizer = None #I'm not sure what to use for this...
-            )))
+                kernel_regularizer = None,
+                name=name), name=('batch'+str(batch_count))
+            ))
 
 # constructs a pooling layer of the arguments.
-def maxPool(poolInput, size=[2,2], stride=[2,2], padding='SAME'):
+def maxPool(poolInput, size=[2,2], stride=[2,2], padding='SAME', name=None):
     return tf.nn.max_pool(
                 poolInput,
                 ksize = [1] + size + [1],
                 strides = [1] + stride + [1],
-                padding = padding
+                padding = padding,
+                name=name
             )
 
 def zeroPad(padInput, height=1, width=1, mode='CONSTANT'):
@@ -49,11 +67,25 @@ def inceptUnit(inceptInput, filters):
     return tf.concat((i_1x1, i_3x3, i_5x5_2, pool_proj), axis=-1)
 
 # returns a batch normalization layer.
-def _batchNormalize(normInput):
-    return tf.layers.batch_normalization(inputs=normInput)
+def _batchNormalize(normInput, name=None):
+    global batch_count
+    batch_count += 1
+    return tf.layers.batch_normalization(
+            inputs=normInput,
+            name=name)
 
-def dense(denseInput, size):
-    return _batchNormalize(tf.layers.dense(inputs=denseInput, units=size))
+def dense(denseInput, size, name=None):
+    global batch_count
+    batch_count += 1
+    return _batchNormalize(
+                tf.layers.dense(
+                    inputs=denseInput,
+                    units=size,
+                    name=name,
+                    use_bias=False
+                ),
+                name=('batch'+str(batch_count))
+            )
 
 # constructs a bias variable.
 def biasVariable(shape):

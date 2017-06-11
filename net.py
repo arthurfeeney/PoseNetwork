@@ -1,40 +1,114 @@
 import tensorflow as tf
 from custom_helper import *
+slim = tf.contrib.slim
 
+# The two cifar functions are
 # used for simple testing other parts of the program.
+def incept_upper_mod(model, lr=1e-3, os=10):
+    net = model['PrePool']
+
+    model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
+
+    net = slim.avg_pool2d(model['upper_input'], net.get_shape()[1:3],
+                        padding='VALID')
+
+    net = slim.flatten(net)
+
+    net = slim.dropout(net, .5, is_training=True)
+
+    model['PreLogitsFlatten'] = net
+    logits = slim.fully_connected(net, os, activation_fn=None)
+
+    loss = tf.nn.softmax_cross_entropy_with_logits(
+        labels=model['labels'],
+        logits=logits
+    )
+
+    model['step'] = tf.train.AdamOptimizer(
+        learning_rate=lr
+    ).minimize(loss)
+
+    correct = tf.equal(tf.argmax(logits, 1),
+                       tf.argmax(model['labels'], 1))
+
+    model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32))
+
+def cifar_upper_net(model, lr=1e-3, os=10):
+    print('CIFAR_upper_net')
+
+    model['upper_input'] = tf.placeholder(tf.float32, shape=[None,8,8,64])
+
+    upper_input_flat = tf.reshape(model['upper_input'], [-1, 4096])
+
+    fc1 = dense(upper_input_flat, size=1024, name='poop')
+
+    mod_out = dense(fc1, size=10, name='ultrapoo')
+
+    loss = tf.nn.softmax_cross_entropy_with_logits(
+        labels=model['labels'],
+        logits=mod_out
+    )
+
+    model['step'] = tf.train.AdamOptimizer(
+        learning_rate=lr,
+        name='Adam_loss'
+    ).minimize(loss)
+
+    correct = tf.equal(tf.argmax(mod_out, 1),
+                       tf.argmax(model['labels'], 1),
+                       name='shit')
+
+    model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32), name='yum')
+
+    return model
+
 def cifar_base_net(lr=1e-3, os=10):
-    print 'CIFAR_base_net'
-    images = tf.placeholder(tf.float32, shape=[None,32,32,3])
-    labels = tf.placeholder(tf.float32, shape=[None, os])
-    conv1_3x3_s1 = conv2d(images, 32, shape=[3,3], stride=(1,1))
-    pool1_2x2_s2 = maxPool(conv1_3x3_s1)
-    conv2_3x3_s1 = conv2d(pool1_2x2_s2, 64, shape=[3,3], stride=(1,1))
-    pool2_2x2_s2 = maxPool(conv2_3x3_s1)
-    pool2_flat = tf.reshape(pool2_2x2_s2, [-1, 4096])
-    fc1_left = dense(pool2_flat, 1024)
-    fc1_right = dense(pool2_flat, 1024)
+    print('CIFAR_base_net')
+    images = tf.placeholder(tf.float32, shape=[None,32,32,3], name='lower_img')
+    labels = tf.placeholder(tf.float32, shape=[None, os], name='lower_label')
+    conv1_3x3_s1 = conv2d(images, 32, shape=[3,3], stride=(1,1), name='conv1')
+    pool1_2x2_s2 = maxPool(conv1_3x3_s1, name='pool1')
+    conv2_3x3_s1 = conv2d(pool1_2x2_s2, 64, shape=[3,3], stride=(1,1),
+                          name='conv2')
+    pool2_2x2_s2 = maxPool(conv2_3x3_s1, name='base_output1')
+    pool2_flat = tf.reshape(pool2_2x2_s2, [-1, 4096], name='pool_flat')
+
+
+
+    fc1_left = dense(pool2_flat, 1024, name='dense_left')
+    fc1_right = dense(pool2_flat, 1024, name='dense_right')
     fc1_combine = tf.concat((fc1_left,
                           fc1_right),
-                          axis=-1)
-    output = dense(fc1_combine, 10)
+                          axis=-1, name='combine')
+    output = dense(fc1_combine, 10, name='lower_output')
     loss = tf.nn.softmax_cross_entropy_with_logits(
-                labels=labels, logits=output
+                labels=labels, logits=output,
+                name='lower_loss'
             )
     step = tf.train.AdamOptimizer(
                 learning_rate=lr,
+                name='lower_Adam'
             ).minimize(loss)
-    correct = tf.equal(tf.argmax(output, 1), tf.argmax(labels, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+    correct = tf.equal(tf.argmax(output, 1),
+                       tf.argmax(labels, 1),
+                       name='lower_correct')
+    accuracy = tf.reduce_mean(tf.cast(correct, tf.float32), name='lower_acc')
     return images, labels, step, accuracy
 
+
+def upper_net(model, lr, os):
+    print('a work soon to be in progress :)')
 
 def create_base_net(lr, os):
     """
     modified googlenet. The 5x5 convolutions in the inception units
-    were changed to a stack of 3x3 convolutions. It uses batch normalization
-    and ELU for all of the conv. They are done inside the function call though.
+    were changed to a stack of 3x3 convolutions. It uese ELU activatin
+    for all of the conv. Batch normalization is used on every layer that has
+    weights. ELU and BN are done inside the conv2d/dense function call in
+    in custom_helper. It uses Adam optimizer for gradient descent and
+    softmax with logits for the loss function.
     """
-    print 'create_base_net called'
+    print('create_base_net called')
     # None means that the batch size can be interpreted.
     # GoogleNet takes 224x224 RGB images. The 3 is the RGB dimension!
     # lablels has a 1000 dimension because ImageNet has 1000 classes.
@@ -52,7 +126,6 @@ def create_base_net(lr, os):
     ximages = tf.image.resize_images(images, [224,224])
     #ximages = tf.image.resize_image_with_crop_or_pad()
     #tf.random_crop()
-    # googlenet
 
     conv1_7x7_s2 = conv2d(ximages, 64, shape=[7,7], stride=(2,2))
 
@@ -118,7 +191,8 @@ def create_base_net(lr, os):
     avg_pool = tf.nn.avg_pool(i_5b_output,
                               ksize=[1,7,7,1],
                               strides=[1,1,1,1],
-                              padding='VALID')
+                              padding='VALID',
+                              name='base_output1')
 
     avg_pool_flat = tf.reshape(avg_pool, [-1, 1024])
 

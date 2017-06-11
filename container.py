@@ -8,6 +8,10 @@ class Data:
         self.__testImages = np.array(data[2])
         self.__testLabels = np.array(self.__labelToVect(data[3]))
         self.__lastBatchEnd = 0
+        self.__train_labels = data[1]
+
+    def labels(self):
+        return self.__train_labels
 
     # change size of range in the inner list to 1000
     def __labelToVect(self, labels):
