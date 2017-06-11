@@ -64,7 +64,7 @@ def main():
 
         input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
 
-        resize = tf.image.resize_image_with_crop_or_pad(input_tensor, [299,299])
+        resize = tf.image.resize_images(input_tensor,[299,299])
 
         feed_tensor = tf.placeholder(tf.float32, shape=[None,299,299,3])
 
