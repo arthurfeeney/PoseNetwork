@@ -1,16 +1,15 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib.framework.python.ops.variables import get_or_create_global_step
-from net import incept_upper_mod, cifar_base_net, cifar_upper_net, create_base_net
+from net import incept_upper_mod
 from container import Data
 from custom_helper import *
 from cifarDownload import *
 from inception_resnet_v2 import *
+from train import train, mod_train
+from test import test, mod_test
 
 slim = tf.contrib.slim
-
-# Hopefully, this will eventually become a fully-functional implementation
-# of GoogleNet! Which will then be modified to a variant of PoseNet.
 
 def main():
 
@@ -65,7 +64,7 @@ def main():
 
         input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
 
-        resize = tf.image.resize_images(input_tensor, [299,299])
+        resize = tf.image.resize_image_with_crop_or_pad(input_tensor, [299,299])
 
         feed_tensor = tf.placeholder(tf.float32, shape=[None,299,299,3])
 
@@ -86,10 +85,9 @@ def main():
         sess.run(tf.global_variables_initializer())
 
         saver = tf.train.Saver()
-        #saver.save(sess, './poop', global_step=0)
-        #loader = tf.train.Saver(variables_to_restore)
+
         sess.run(tf.global_variables_initializer())
-        #loader = tf.train.import_meta_graph('./poop-0.meta')
+
         loader = tf.train.Saver(variables_to_restore)
         loader.restore(sess, checkpoint_file)
 
@@ -136,138 +134,6 @@ def main():
                 }
             )
     print('finished')
-
-def train(model, data, save_weight_file, init_weight_file=None,
-          batch_size=32, epoch=1, verbose=False):
-    with tf.Session() as sess:
-        if init_weight_file is not None:
-            loader = tf.train.import_meta_graph(init_weight_file)
-            loader.restore(sess, tf.train.latest_checkpoint(
-                '/data/zhanglab/afeeney/cifar_model/'
-            ))
-        else:
-            sess.run(tf.global_variables_initializer())
-
-        for e in range(epoch):
-            data.shuffleData()
-            # modifying number of steps.
-            for epi in range(0, data.trainSize()-batch_size-1, batch_size):
-                ib, lb = data.trainBatch(batch_size)
-                if verbose and epi % (20*batch_size) == 0:
-                    # this should use validation set for ImageNet
-                    # keeping score of the last validation set.
-                    # also after the training part.
-                    batchAccuracy = model['acc'].eval(
-                        feed_dict = {
-                            model['images']: ib,
-                            model['labels']: lb
-                        }
-                    )
-                    print('step %d, acc %g'%(epi, batchAccuracy))
-                model['step'].run(
-                    feed_dict = {
-                        model['images']: ib,
-                        model['labels']: lb
-                    }
-                )
-            saver = tf.train.Saver()
-            saver.save(sess, save_weight_file, global_step=e)
-
-def mod_train(model, data, save_weight_file,
-              init_weight_file, batch_size=32, epoch=1, verbose=False):
-    with tf.Session() as sess:
-
-        model = cifar_upper_net(model)
-
-        sess.run(tf.global_variables_initializer())
-
-        saver = tf.train.Saver()
-
-        loader = tf.train.import_meta_graph(init_weight_file)
-        loader.restore(sess, tf.train.latest_checkpoint(
-            '/data/zhanglab/afeeney/cifar_model/'
-        ))
-
-        model['base_out'] = \
-            tf.get_default_graph().get_tensor_by_name('base_output1:0')
-
-        for e in range(epoch):
-            data.shuffleData()
-            for epi in range(0, data.trainSize()-batch_size-1, batch_size):
-                batch = data.trainBatch(batch_size)
-                model['step'].run(
-                    feed_dict = {
-                        model['upper_input']: model['base_out'].eval(
-                            feed_dict = {
-                                model['images']: batch[0],
-                                model['labels']: batch[1]
-                            }
-                        ),
-                        model['labels']: batch[1]
-                    }
-                )
-        saver.save(sess, save_weight_file, global_step=0)
-    return model
-
-def mod_test(model, data, weight_file, verbose=False, batch_size=16):
-    print('MODIFY_test called')
-    with tf.Session() as sess:
-        loader = tf.train.import_meta_graph(weight_file)
-        loader.restore(sess, tf.train.latest_checkpoint(
-            '/data/zhanglab/afeeney/cifar_model/'
-        ))
-
-        images, labels = data.test()
-        acc = 0
-        count = 0
-
-        for index in range(len(labels)-batch_size-1):
-            if verbose and index % (10 * batch_size) == 0:
-                print('tested: %d images'%index)
-            acc += model['acc'].eval(
-                feed_dict = {
-                    model['upper_input']: model['base_out'].eval(
-                        feed_dict = {
-                            model['images']: images[index:index+batch_size],
-                            model['labels']: labels[index:index+batch_size]
-                        }
-                    ),
-                    model['labels']: labels[index:index+batch_size]
-                }
-            )
-            count += 1
-
-        test_acc = acc / count
-        print('test acc: %g'%test_acc)
-    return False
-
-
-def test(model, data, weight_file, verbose=False):
-    print('test called')
-    with tf.Session() as sess:
-        loader = tf.train.import_meta_graph(weight_file)
-        loader.restore(sess, tf.train.latest_checkpoint(
-            '/data/zhanglab/afeeney/cifar_model/'
-        ))
-
-        images, labels = data.test()
-        acc = 0
-        count = 0
-
-        batch_size = 16 # small default so it is a bit smoother.
-        for index in range(len(labels)-batch_size-1):
-            if verbose and index % (10 * batch_size) == 0:
-                print('tested: %d images'%index)
-            acc += model['acc'].eval(
-                feed_dict = {
-                    model['images']: images[index:index+batch_size],
-                    model['labels']: labels[index:index+batch_size]
-                }
-            )
-            count += 1
-        test_acc = acc / count
-        print('test acc: %g'%test_acc)
-    return False
 
 if __name__ == "__main__":
     main()
