@@ -1,6 +1,5 @@
 
-# I did not make this although I did modify it very (very) slightly so it would work
-# work with python 2.7
+# I did not make this although I did modify it very (very) slightly.
 
 ########################################################################
 #

@@ -53,25 +53,28 @@ def main():
 
     num_classes = 10
 
-
     train_images, train_labels = load_training_data()
     test_images, test_labels = load_test_data()
 
     data = Data((train_images, train_labels, test_images, test_labels))
 
+
+    # train
     with tf.Session() as sess:
 
         input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
 
-        resize = tf.image.resize_images(input_tensor,[299,299])
+        resize = tf.image.resize_images(input_tensor,[image_size,image_size])
 
-        feed_tensor = tf.placeholder(tf.float32, shape=[None,299,299,3])
+        feed_tensor = tf.placeholder(
+                        tf.float32,
+                        shape=[None,image_size,image_size,3])
 
         arg_scope = inception_resnet_v2_arg_scope()
         with slim.arg_scope(arg_scope):
             logits, end_points = inception_resnet_v2(
                     feed_tensor,
-                    num_classes=10,
+                    num_classes=num_classes,
                     is_training=True)
 
         end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 10])
@@ -93,15 +96,32 @@ def main():
         base_out = end_points['PrePool']
 
         batch_size = 32
+        num_epochs = 1
+        verbose = True
 
-        for index in range(0, data.train_size()-batch_size-1, batch_size):
-            data.shuffle()
-            images, labels = data.get_next_train_batch(batch_size)
-            images[:,:,:] = 2*(images/299.0)-1.0
+        for i in range(num_epochs):
+            for index in range(0, data.train_size()-batch_size-1, batch_size):
+                data.shuffle()
+                images, labels = data.get_next_train_batch(batch_size)
+                images[:,:,:] = 2*(images/299.0)-1.0
 
-
-            if index % (2 * batch_size) == 0:
-                batch_acc = end_points['acc'].eval(
+                if verbose and index % (20 * batch_size) == 0:
+                    batch_acc = end_points['acc'].eval(
+                        feed_dict = {
+                            end_points['upper_input']: base_out.eval(
+                                feed_dict = {
+                                    feed_tensor: resize.eval(
+                                        feed_dict = {
+                                            input_tensor: images
+                                        }
+                                    )
+                                }
+                            ),
+                            end_points['labels']: labels
+                        }
+                    )
+                    print(batch_acc)
+                end_points['step'].run(
                     feed_dict = {
                         end_points['upper_input']: base_out.eval(
                             feed_dict = {
@@ -115,25 +135,12 @@ def main():
                         end_points['labels']: labels
                     }
                 )
-                print(batch_acc)
+        saver.save(sess, )
 
-            end_points['step'].run(
-                feed_dict = {
-                    end_points['upper_input']: base_out.eval(
-                        feed_dict = {
-                            feed_tensor: resize.eval(
-                                feed_dict = {
-                                    input_tensor: images
-                                }
-                            )
-                        }
-                    ),
-                    end_points['labels']: labels
-                }
-            )
+    with tf.Session as sess:
 
 
-        test_images, test_labels = data.test_set()
+    test_images, test_labels = data.test_set()
 
 
 
