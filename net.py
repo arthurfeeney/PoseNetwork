@@ -4,6 +4,43 @@ slim = tf.contrib.slim
 
 # The two cifar functions are
 # used for simple testing other parts of the program.
+
+def pose_upper(model, lr=1e-3, os=10):
+    net = model['PrePool']
+
+    model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
+
+    net = slim.avg_pool2d(model['upper_input'], net.get_shape()[1:3],
+                          padding='VALID')
+
+    net = slim.flatten(net)
+
+    net = slim.fully_connected(net, 2048, activation_fn=None)
+
+    loc = slim.fully_connected(net, 1024, activation_fn=None)
+
+    ori = slim.fully_connected(net, 1024, activation_fn=None)
+
+    loc = slim.fully_connected(loc, 3, activation_fn=None)
+
+    ori = slim.fully_connected(ori, 4, activation_fn=None)
+
+    logits = tf.concat((loc, ori), axis=-1)
+
+    loss = tf.nn.softmax_cross_entropy_with_logits(
+        labels=model['labels'],
+        logits=logits
+    )
+
+    model['step'] = tf.train.AdamOptimizer(
+        learning_rate=lr
+    ).minimize(loss)
+
+    correct = tf.equal(tf.argmax(logits, 1),
+                       tf.argmax(model['labels'], 1))
+
+    model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32))
+
 def incept_upper_mod(model, lr=1e-3, os=10):
     net = model['PrePool']
 

@@ -1,10 +1,11 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib.framework.python.ops.variables import get_or_create_global_step
-from net import incept_upper_mod
+from net import incept_upper_mod, pose_upper
 from container import Data
 from custom_helper import *
-from cifarDownload import *
+#from cifarDownload import *
+from scenesDownload import *
 from inception_resnet_v2 import *
 from train import train, mod_train
 from test import test, mod_test
@@ -81,7 +82,7 @@ def main():
     exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
     variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-    incept_upper_mod(end_points)
+    pose_upper(end_points)
 
     base_out = end_points['PrePool']
 
@@ -98,14 +99,13 @@ def main():
 
 
         batch_size = 32
-        num_epochs = 2
+        num_epochs = 1
         verbose = True
 
         for i in range(num_epochs):
             for index in range(0, 100-batch_size-1, batch_size):
                 data.shuffle()
                 images, labels = data.get_next_train_batch(batch_size)
-                images[:,:,:] = 2*(images/299.0)-1.0
 
                 if verbose and index % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
@@ -154,7 +154,10 @@ def main():
         acc = 0
         count = 0
 
-        for index in range(len(test_labels)-batch_size-1):
+        for index in range(
+            100
+            #len(test_labels)-batch_size-1
+        ):
             acc += end_points['acc'].eval(
                 feed_dict = {
                     end_points['upper_input']: base_out.eval(
