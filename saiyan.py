@@ -60,29 +60,32 @@ def main():
 
 
     # train
-    with tf.Session() as sess:
 
-        input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
+    input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
 
-        resize = tf.image.resize_images(input_tensor,[image_size,image_size])
+    resize = tf.image.resize_images(input_tensor,[image_size,image_size])
 
-        feed_tensor = tf.placeholder(
+    feed_tensor = tf.placeholder(
                         tf.float32,
                         shape=[None,image_size,image_size,3])
 
-        arg_scope = inception_resnet_v2_arg_scope()
-        with slim.arg_scope(arg_scope):
-            logits, end_points = inception_resnet_v2(
-                    feed_tensor,
-                    num_classes=num_classes,
-                    is_training=True)
+    arg_scope = inception_resnet_v2_arg_scope()
+    with slim.arg_scope(arg_scope):
+        logits, end_points = inception_resnet_v2(
+                feed_tensor,
+                num_classes=num_classes,
+                is_training=True)
 
-        end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 10])
+    end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 10])
 
-        exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
-        variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
+    exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
+    variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-        incept_upper_mod(end_points)
+    incept_upper_mod(end_points)
+
+    base_out = end_points['PrePool']
+
+    with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
 
@@ -93,19 +96,18 @@ def main():
         loader = tf.train.Saver(variables_to_restore)
         loader.restore(sess, checkpoint_file)
 
-        base_out = end_points['PrePool']
 
         batch_size = 32
         num_epochs = 1
         verbose = True
 
         for i in range(num_epochs):
-            for index in range(0, data.train_size()-batch_size-1, batch_size):
+            for index in range(0, 1000-batch_size-1, batch_size):
                 data.shuffle()
                 images, labels = data.get_next_train_batch(batch_size)
                 images[:,:,:] = 2*(images/299.0)-1.0
 
-                if verbose and index % (20 * batch_size) == 0:
+                if verbose and index % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
                         feed_dict = {
                             end_points['upper_input']: base_out.eval(
@@ -120,7 +122,7 @@ def main():
                             end_points['labels']: labels
                         }
                     )
-                    print(batch_acc)
+                    print('step: ' + str(index) + ' acc: ' + str(batch_acc))
                 end_points['step'].run(
                     feed_dict = {
                         end_points['upper_input']: base_out.eval(
@@ -135,15 +137,41 @@ def main():
                         end_points['labels']: labels
                     }
                 )
-        saver.save(sess, )
+        saver.save(sess,
+                   '/data/zhanglab/afeeney/cifar_model/cifar_test',
+                   global_step=0)
 
-    with tf.Session as sess:
+    with tf.Session() as sess:
+        loader = tf.train.import_meta_graph(
+            '/data/zhanglab/afeeney/cifar_model/cifar_test-0.meta'
+        )
+        loader.restore(sess, tf.train.latest_checkpoint(
+            '/data/zhanglab/afeeney/cifar_model'
+        ))
+        test_images, test_labels = data.test_set()
 
+        batch_size = 1
+        acc = 0
+        count = 0
 
-    test_images, test_labels = data.test_set()
+        for index in range(len(test_labels)-batch_size-1):
+            acc += end_points['acc'].eval(
+                feed_dict = {
+                    end_points['upper_input']: base_out.eval(
+                        feed_dict = {
+                            feed_tensor: resize.eval(
+                                feed_dict = {
+                                    input_tensor: test_images[index:index+1]
+                                }
+                            )
+                        }
+                    ),
+                    end_points['labels']: test_labels[index:index+1]
+                }
+            )
+            count += 1
 
-
-
+        print(acc / count)
 
     print('finished')
 
