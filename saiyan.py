@@ -98,11 +98,11 @@ def main():
 
 
         batch_size = 32
-        num_epochs = 1
+        num_epochs = 2
         verbose = True
 
         for i in range(num_epochs):
-            for index in range(0, 1000-batch_size-1, batch_size):
+            for index in range(0, data.train_size()-batch_size-1, batch_size):
                 data.shuffle()
                 images, labels = data.get_next_train_batch(batch_size)
                 images[:,:,:] = 2*(images/299.0)-1.0
