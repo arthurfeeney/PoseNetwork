@@ -1,11 +1,23 @@
 import tensorflow as tf
 from custom_helper import *
 slim = tf.contrib.slim
-
+import math
+import numpy as np
 # The two cifar functions are
 # used for simple testing other parts of the program.
 
-def pose_upper(model, lr=1e-3, os=10):
+def euclidean_distance(predicted, actual, scale = 50):
+    print(actual.get_shape())
+    x, q = tf.split(predicted, [3,4], axis=1)
+    x_, q_ = tf.split(actual, [3,4], axis=1)
+
+    b = tf.constant(scale, dtype=tf.float32)
+
+    return tf.norm(x_ - x) + \
+           tf.multiply(b, tf.norm(q_ - tf.divide(q, tf.norm(q))))
+
+
+def pose_upper(model, lr=1e-3, os=7):
     net = model['PrePool']
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
@@ -25,21 +37,22 @@ def pose_upper(model, lr=1e-3, os=10):
 
     ori = slim.fully_connected(ori, 4, activation_fn=None)
 
-    logits = tf.concat((loc, ori), axis=-1)
+    logits = tf.concat((loc, ori), axis=1)
 
-    loss = tf.nn.softmax_cross_entropy_with_logits(
-        labels=model['labels'],
-        logits=logits
+    loss = euclidean_distance(
+        actual=model['labels'],
+        predicted=logits
     )
 
     model['step'] = tf.train.AdamOptimizer(
         learning_rate=lr
     ).minimize(loss)
 
-    correct = tf.equal(tf.argmax(logits, 1),
-                       tf.argmax(model['labels'], 1))
+    correct = tf.equal(logits, model['labels'])
 
-    model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32))
+    #model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32))
+
+    model['acc'] = loss
 
 def incept_upper_mod(model, lr=1e-3, os=10):
     net = model['PrePool']

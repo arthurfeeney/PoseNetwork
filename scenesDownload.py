@@ -179,17 +179,43 @@ def load_test_data():
     Load all the test-data for the CIFAR-10 data-set.
     Returns the images, class-numbers and one-hot encoded class-labels.
     """
-    for i in [3,5]:
-        images_batch, cls = _load_data(filename="seq-0" + str(i))
+    images = np.zeros(
+                    shape=[_num_images_train, img_height,
+                           img_width,num_channels],
+                    dtype=float
+                )
+    pls = np.empty(shape=[_num_images_train, 7], dtype=float)
+    begin = 0
+    for i in range(_num_files_train):
+        # Load the images and class-numbers from the data-file.
+        # ignore the depth png
+        if i == 2 or i ==  4:
+            images_batch = [None]*_images_per_file
+            pls_batch = [None]*_images_per_file
+            for j in range(_images_per_file):
+                zerod_j = str(j).zfill(3)
+                im_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.color.png'
+                image = \
+                _load_data(filename=im_filename)
 
-        num_images = len(images_batch)
+                pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
 
-        end = begin + num_images
+                pl = _load_cls(filename=pls_filename)
 
-        images[begin:end, :] = images_batch
+                images_batch[j] = image
+                pls_batch[j] = pl
 
-        cls[begin:end] = cls_batch
+            num_images = len(images_batch)
 
-        begin = end
+            # End-index for the current batch.
+            end = begin + num_images
 
-    return images, cls
+            # Store the images into the array.
+            images[begin:end, :] = images_batch
+
+            # Store the class-numbers into the array.
+            pls[begin:end] = pls_batch
+
+            # The begin-index for the next batch is the current end-index.
+            begin = end
+    return images, pls

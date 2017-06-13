@@ -52,7 +52,7 @@ def main():
 
     image_size = 299
 
-    num_classes = 10
+    num_classes = 7
 
     train_images, train_labels = load_training_data()
     test_images, test_labels = load_test_data()
@@ -62,9 +62,15 @@ def main():
 
     # train
 
-    input_tensor = tf.placeholder(tf.float32, shape=[None,32,32,3])
+    input_tensor = tf.placeholder(tf.float32, shape=[None,480,640,3])
 
-    resize = tf.image.resize_images(input_tensor,[image_size,image_size])
+    resize = tf.image.crop_to_bounding_box(
+        image=input_tensor,
+        offset_height=np.random.randint(low=0,high=480-299),
+        offset_width=np.random.randint(low=0,high=640-299),
+        target_height=299,
+        target_width=299
+    )
 
     feed_tensor = tf.placeholder(
                         tf.float32,
@@ -77,12 +83,12 @@ def main():
                 num_classes=num_classes,
                 is_training=True)
 
-    end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 10])
+    end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
 
     exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
     variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-    pose_upper(end_points)
+    pose_upper(end_points, os=7)
 
     base_out = end_points['PrePool']
 
@@ -99,11 +105,11 @@ def main():
 
 
         batch_size = 32
-        num_epochs = 1
+        num_epochs = 2
         verbose = True
 
         for i in range(num_epochs):
-            for index in range(0, 100-batch_size-1, batch_size):
+            for index in range(0, data.train_size()-batch_size-1, batch_size):
                 data.shuffle()
                 images, labels = data.get_next_train_batch(batch_size)
 
@@ -154,10 +160,7 @@ def main():
         acc = 0
         count = 0
 
-        for index in range(
-            100
-            #len(test_labels)-batch_size-1
-        ):
+        for index in range(len(test_labels)-batch_size-1):
             acc += end_points['acc'].eval(
                 feed_dict = {
                     end_points['upper_input']: base_out.eval(
