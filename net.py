@@ -7,9 +7,8 @@ import numpy as np
 # used for simple testing other parts of the program.
 
 def euclidean_distance(predicted, actual, scale = 50):
-    print(actual.get_shape())
-    x, q = tf.split(predicted, [3,4], axis=1)
-    x_, q_ = tf.split(actual, [3,4], axis=1)
+    x, q = tf.split(tf.reduce_mean(predicted, axis=0), [3,4], axis=0)
+    x_, q_ = tf.split(tf.reduce_mean(actual, axis=0), [3,4], axis=0)
 
     b = tf.constant(scale, dtype=tf.float32)
 
@@ -41,7 +40,8 @@ def pose_upper(model, lr=1e-3, os=7):
 
     loss = euclidean_distance(
         actual=model['labels'],
-        predicted=logits
+        predicted=logits,
+        scale=100
     )
 
     model['step'] = tf.train.AdamOptimizer(

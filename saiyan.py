@@ -54,23 +54,16 @@ def main():
 
     num_classes = 7
 
-    train_images, train_labels = load_training_data()
-    test_images, test_labels = load_test_data()
 
-    data = Data((train_images, train_labels, test_images, test_labels))
+    train_data = load_training_data()
+    test_data = load_test_data()
 
+    data = Data(train_data, test_data)
 
     # train
 
     input_tensor = tf.placeholder(tf.float32, shape=[None,480,640,3])
 
-    resize = tf.image.crop_to_bounding_box(
-        image=input_tensor,
-        offset_height=np.random.randint(low=0,high=480-299),
-        offset_width=np.random.randint(low=0,high=640-299),
-        target_height=299,
-        target_width=299
-    )
 
     feed_tensor = tf.placeholder(
                         tf.float32,
@@ -92,6 +85,7 @@ def main():
 
     base_out = end_points['PrePool']
 
+    print('starting training')
     with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -105,13 +99,23 @@ def main():
 
 
         batch_size = 32
-        num_epochs = 2
-        verbose = True
+        num_epochs = 20
+        verbose = False
 
         for i in range(num_epochs):
             for index in range(0, data.train_size()-batch_size-1, batch_size):
+
                 data.shuffle()
+
                 images, labels = data.get_next_train_batch(batch_size)
+
+                resize = tf.image.crop_to_bounding_box(
+                    image=input_tensor,
+                    offset_height=np.random.randint(low=0, high=480-299),
+                    offset_width=np.random.randint(low=0, high=640-299),
+                    target_height=image_size,
+                    target_width=image_size
+                )
 
                 if verbose and index % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
@@ -128,7 +132,9 @@ def main():
                             end_points['labels']: labels
                         }
                     )
+
                     print('step: ' + str(index) + ' acc: ' + str(batch_acc))
+
                 end_points['step'].run(
                     feed_dict = {
                         end_points['upper_input']: base_out.eval(
@@ -143,9 +149,13 @@ def main():
                         end_points['labels']: labels
                     }
                 )
+
         saver.save(sess,
                    '/data/zhanglab/afeeney/cifar_model/cifar_test',
                    global_step=0)
+
+
+    print('starting testing')
 
     with tf.Session() as sess:
         loader = tf.train.import_meta_graph(
@@ -159,6 +169,14 @@ def main():
         batch_size = 1
         acc = 0
         count = 0
+
+        resize = tf.image.crop_to_bounding_box(
+            image=input_tensor,
+            offset_height=int((480-image_size)/2),
+            offset_width=int((640-image_size)/2),
+            target_height=image_size,
+            target_width=image_size
+        )
 
         for index in range(len(test_labels)-batch_size-1):
             acc += end_points['acc'].eval(
@@ -175,6 +193,7 @@ def main():
                     end_points['labels']: test_labels[index:index+1]
                 }
             )
+            print('count: ' + str(count) + 'acc: ' + str(acc))
             count += 1
 
         print(acc / count)

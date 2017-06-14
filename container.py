@@ -2,11 +2,11 @@ import numpy as np
 import random
 
 class Data:
-    def __init__(self, data):
-        self.__train_images = data[0]
-        self.__train_labels = data[1]
-        self.__test_images = data[2]
-        self.__test_labels = data[3]
+    def __init__(self, train_data, test_data):
+        self.__train_images = train_data[0]
+        self.__train_labels = train_data[1]
+        self.__test_images = test_data[0]
+        self.__test_labels = test_data[1]
         self.__last_batch_end = 0
 
     # change size of range in the inner list to 1000
