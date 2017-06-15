@@ -6,7 +6,7 @@ import numpy as np
 # The two cifar functions are
 # used for simple testing other parts of the program.
 
-def euclidean_distance(predicted, actual, scale = 50):
+def euclidean_distance(predicted, actual, scale = 10):
     x, q = tf.split(tf.reduce_mean(predicted, axis=0), [3,4], axis=0)
     x_, q_ = tf.split(tf.reduce_mean(actual, axis=0), [3,4], axis=0)
 
@@ -15,33 +15,38 @@ def euclidean_distance(predicted, actual, scale = 50):
     return tf.norm(x_ - x) + \
            tf.multiply(b, tf.norm(q_ - tf.divide(q, tf.norm(q))))
 
-
 def pose_upper(model, lr=1e-3, os=7):
+
     net = model['PrePool']
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
 
-    net = slim.avg_pool2d(model['upper_input'], net.get_shape()[1:3],
-                          padding='VALID')
+    net = slim.conv2d_transpose(model['upper_input'], net.get_shape()[3],
+                                (4,4), stride=2,
+                                normalizer_fn=slim.batch_norm)
+
+    net = slim.conv2d_transpose(net, net.get_shape()[3], (4,4), stride=2,
+                                normalizer_fn=slim.batch_norm)
+
+    net = slim.conv2d_transpose(net, net.get_shape()[3], (4,4), stride=2,
+                                normalizer_fn=slim.batch_norm)
+
+    net = slim.conv2d(net, 32, (3,3), stride=1,
+                      normalizer_fn=slim.batch_norm)
 
     net = slim.flatten(net)
 
-    net = slim.fully_connected(net, 2048, activation_fn=None)
+    net = slim.fully_connected(net, 2048, normalizer_fn=slim.batch_norm)
 
-    loc = slim.fully_connected(net, 1024, activation_fn=None)
+    loc = slim.fully_connected(net, 3, normalizer_fn=slim.batch_norm)
 
-    ori = slim.fully_connected(net, 1024, activation_fn=None)
-
-    loc = slim.fully_connected(loc, 3, activation_fn=None)
-
-    ori = slim.fully_connected(ori, 4, activation_fn=None)
+    ori = slim.fully_connected(net, 4, normalizer_fn=slim.batch_norm)
 
     logits = tf.concat((loc, ori), axis=1)
 
     loss = euclidean_distance(
         actual=model['labels'],
-        predicted=logits,
-        scale=100
+        predicted=logits
     )
 
     model['step'] = tf.train.AdamOptimizer(
@@ -50,9 +55,8 @@ def pose_upper(model, lr=1e-3, os=7):
 
     correct = tf.equal(logits, model['labels'])
 
-    #model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32))
-
     model['acc'] = loss
+
 
 def incept_upper_mod(model, lr=1e-3, os=10):
     net = model['PrePool']
@@ -111,6 +115,3 @@ def cifar_upper_net(model, lr=1e-3, os=10):
     model['acc'] = tf.reduce_mean(tf.cast(correct, tf.float32), name='yum')
 
     return model
-
-def upper_net(model, lr, os):
-    print('a work soon to be in progress :)')

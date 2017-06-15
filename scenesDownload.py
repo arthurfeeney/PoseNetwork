@@ -5,7 +5,6 @@ import numpy as np
 import pickle
 import os
 from PIL import Image
-import download
 import re
 import math
 #from dataset import one_hot_encoded
@@ -19,39 +18,22 @@ data_path = "/data/zhanglab/afeeney/7scenes/chess/"
 # URL for the data-set on the internet.
 data_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
 
-########################################################################
-# Various constants for the size of the images.
-# Use these constants in your own program.
-
-# Width and height of each image.
 img_height = 480
 img_width = 640
 
-# Number of channels in each image, 3 channels: Red, Green, Blue.
 num_channels = 3
 
-# Length of an image when flattened to a 1-dim array.
 img_size_flat = img_height * img_width * num_channels
 
-# Number of classes.
 num_classes = 7
 
-########################################################################
-# Various constants used to allocate arrays of the correct size.
-
-# Number of files for the training-set.
 _num_files_train = 4
 
-# Number of images for each batch-file in the training-set.
+
 _images_per_file = 1000
 
 # Total number of images in the training-set.
-# This is used to pre-allocate arrays for efficiency.
 _num_images_train = _num_files_train * _images_per_file
-
-########################################################################
-# Private functions for downloading, unpacking and loading data-files.
-
 
 def _get_file_path(filename=""):
     """
@@ -103,7 +85,7 @@ def _load_cls(filename):
     m = m.astype(np.float)
 
     location = m[0:3, -1] # gets top 3 elem in 4th col.
-    quaternion = [0.0]*4
+    quaternion = [0.0 for _ in range(4)]
 
     quaternion[0] = math.sqrt(1 + m[0][0] + m[1][1] + m[2][2]) / 2.0
     q4 = 4.0 * quaternion[0]
@@ -115,12 +97,6 @@ def _load_cls(filename):
 
     return label
 
-
-########################################################################
-# Public functions that you may call to download the data-set from
-# the internet and load the data into memory.
-
-
 def load_training_data():
     images = np.zeros(
                     shape=[_num_images_train, img_height,
@@ -130,12 +106,14 @@ def load_training_data():
     pls = np.empty(shape=[_num_images_train, 7], dtype=float)
     begin = 0
     for i in [0,1,3,5]:
-        print(i)
         images_batch = [None]*_images_per_file
         pls_batch = [None]*_images_per_file
+
         for j in range(_images_per_file):
             zerod_j = str(j).zfill(3)
+
             im_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.color.png'
+
             image = _load_data(filename=im_filename)
 
             pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
@@ -143,7 +121,7 @@ def load_training_data():
             pl = _load_cls(filename=pls_filename)
 
             images_batch[j] = image
-            #images = np.append(images, image)
+
             pls_batch[j] = pl
 
         num_images = len(images_batch)
@@ -171,9 +149,12 @@ def load_test_data():
     for i in [2, 4]:
         images_batch = [None]*_images_per_file
         pls_batch = [None]*_images_per_file
+
         for j in range(_images_per_file):
             zerod_j = str(j).zfill(3)
+
             im_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.color.png'
+
             image = _load_data(filename=im_filename)
 
             pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'

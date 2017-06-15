@@ -62,6 +62,7 @@ def main():
 
     # train
 
+    #with tf.device('/gpu:0'):
     input_tensor = tf.placeholder(tf.float32, shape=[None,480,640,3])
 
 
@@ -72,9 +73,9 @@ def main():
     arg_scope = inception_resnet_v2_arg_scope()
     with slim.arg_scope(arg_scope):
         logits, end_points = inception_resnet_v2(
-                feed_tensor,
-                num_classes=num_classes,
-                is_training=True)
+                    feed_tensor,
+                    num_classes=num_classes,
+                    is_training=True)
 
     end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
 
@@ -84,6 +85,7 @@ def main():
     pose_upper(end_points, os=7)
 
     base_out = end_points['PrePool']
+
 
     print('starting training')
     with tf.Session() as sess:
@@ -99,16 +101,16 @@ def main():
 
 
         batch_size = 32
-        num_epochs = 20
+        num_epochs = 1
         verbose = False
 
         for i in range(num_epochs):
             for index in range(0, data.train_size()-batch_size-1, batch_size):
-
                 data.shuffle()
 
                 images, labels = data.get_next_train_batch(batch_size)
 
+                # random crop
                 resize = tf.image.crop_to_bounding_box(
                     image=input_tensor,
                     offset_height=np.random.randint(low=0, high=480-299),
@@ -133,7 +135,7 @@ def main():
                         }
                     )
 
-                    print('step: ' + str(index) + ' acc: ' + str(batch_acc))
+                    print('step: '+str(index)+' acc: '+str(batch_acc))
 
                 end_points['step'].run(
                     feed_dict = {
@@ -151,7 +153,7 @@ def main():
                 )
 
         saver.save(sess,
-                   '/data/zhanglab/afeeney/cifar_model/cifar_test',
+                   '/data/zhanglab/afeeney/chess_test',
                    global_step=0)
 
 
@@ -159,17 +161,19 @@ def main():
 
     with tf.Session() as sess:
         loader = tf.train.import_meta_graph(
-            '/data/zhanglab/afeeney/cifar_model/cifar_test-0.meta'
+            '/data/zhanglab/afeeney/chess_test-0.meta'
         )
         loader.restore(sess, tf.train.latest_checkpoint(
-            '/data/zhanglab/afeeney/cifar_model'
+            '/data/zhanglab/afeeney/'
         ))
         test_images, test_labels = data.test_set()
 
         batch_size = 1
         acc = 0
         count = 0
+        verbose = False
 
+        # center crop
         resize = tf.image.crop_to_bounding_box(
             image=input_tensor,
             offset_height=int((480-image_size)/2),
@@ -185,7 +189,7 @@ def main():
                         feed_dict = {
                             feed_tensor: resize.eval(
                                 feed_dict = {
-                                    input_tensor: test_images[index:index+1]
+                                    input_tensor:test_images[index:index+1]
                                 }
                             )
                         }
@@ -193,10 +197,11 @@ def main():
                     end_points['labels']: test_labels[index:index+1]
                 }
             )
-            print('count: ' + str(count) + 'acc: ' + str(acc))
+            if verbose:
+                print('count: ' + str(count) + 'acc: ' + str(acc))
             count += 1
 
-        print(acc / count)
+        print('test acc: ' + str(acc / count))
 
     print('finished')
 
