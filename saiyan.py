@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib.framework.python.ops.variables import get_or_create_global_step
-from net import incept_upper_mod, pose_upper
+from net import decoder, decode_dual_stream
 from container import Data
 from custom_helper import *
 #from cifarDownload import *
@@ -14,38 +14,7 @@ slim = tf.contrib.slim
 
 def main():
 
-    set_batch_count()
-    """
-    trainImages, trainLabels = load_training_data()
-    testImages, testLabels = load_test_data()
-
-    cifarData = Data((trainImages, trainLabels, testImages, testLabels))
-
-    images, labels, step, accuracy = cifar_base_net(.001, 10)
-
-    model = {
-        'images': images,
-        'labels': labels,
- 	    'step': step,	    'acc': accuracy
-    }
-
-    #cifar_dir = '/data/zhanglab/afeeney/cifar_model/'
-    #cifar_save_path = '/data/zhanglab/afeeney/cifar_model/cifar_test'
-    # modify load_path based on the number of epochs of last training.
-    #cifar_load_path = '/data/zhanglab/afeeney/cifar_model/cifar_test-0.meta'
-
-    train(model, cifarData, save_weight_file=cifar_save_path, batch_size=16)
-
-    model = mod_train(
-        model,
-        cifarData,
-        save_weight_file=cifar_save_path,
-        init_weight_file=cifar_load_path,
-        epoch = 1
-    )
-
-    mod_test(model, cifarData, weight_file=cifar_load_path, verbose=True)
-    """
+    set_batch_count() # just used for nameing.
 
     checkpoint_file = \
         '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt'
@@ -54,41 +23,67 @@ def main():
 
     num_classes = 7
 
-
+    #with tf.device('/cpu:0'):
     train_data = load_training_data()
     test_data = load_test_data()
 
     data = Data(train_data, test_data)
 
-    # train
+    with tf.device('/cpu:0'):
+        input_tensor = tf.placeholder(
+                        tf.float32,
+                        shape=[None,480,640,3])
 
-    #with tf.device('/gpu:0'):
-    input_tensor = tf.placeholder(tf.float32, shape=[None,480,640,3])
 
-
-    feed_tensor = tf.placeholder(
+        feed_tensor = tf.placeholder(
                         tf.float32,
                         shape=[None,image_size,image_size,3])
 
-    arg_scope = inception_resnet_v2_arg_scope()
-    with slim.arg_scope(arg_scope):
-        logits, end_points = inception_resnet_v2(
+        arg_scope = inception_resnet_v2_arg_scope()
+        with slim.arg_scope(arg_scope):
+            logits, end_points = inception_resnet_v2(
                     feed_tensor,
                     num_classes=num_classes,
                     is_training=True)
 
-    end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
+        end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
 
-    exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
-    variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
+        exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
+        variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-    pose_upper(end_points, os=7)
+        #decoder(end_points, os=7)
 
-    base_out = end_points['PrePool']
+        decode_dual_stream(end_points, os=7)
 
+        end_points['input_tensor'] = input_tensor
+        end_points['feed_tensor'] = feed_tensor
 
     print('starting training')
-    with tf.Session() as sess:
+
+    train(end_points,
+          variables_to_restore,
+          '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt',
+          data,
+          batch_size=16,
+          verbose=False)
+
+    print('starting testing')
+
+    error = test(end_points, data)
+
+    print('distance' + str(error[0]) + ' angle ' + str(error[1]))
+
+    print('finished')
+
+def train(end_points,
+          variables_to_restore,
+          checkpoint_file,
+          data,
+          image_size=299,
+          num_epochs=1,
+          batch_size=32,
+          verbose=False):
+    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
 
@@ -99,20 +94,15 @@ def main():
         loader = tf.train.Saver(variables_to_restore)
         loader.restore(sess, checkpoint_file)
 
-
-        batch_size = 32
-        num_epochs = 1
-        verbose = False
-
         for i in range(num_epochs):
             for index in range(0, data.train_size()-batch_size-1, batch_size):
                 data.shuffle()
 
-                images, labels = data.get_next_train_batch(batch_size)
+                images, labels = data.get_next_batch(batch_size)
 
                 # random crop
                 resize = tf.image.crop_to_bounding_box(
-                    image=input_tensor,
+                    image=end_points['input_tensor'],
                     offset_height=np.random.randint(low=0, high=480-299),
                     offset_width=np.random.randint(low=0, high=640-299),
                     target_height=image_size,
@@ -122,11 +112,11 @@ def main():
                 if verbose and index % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
                         feed_dict = {
-                            end_points['upper_input']: base_out.eval(
-                                feed_dict = {
-                                    feed_tensor: resize.eval(
+                            end_points['upper_input']:\
+                                end_points['PrePool'].eval(feed_dict = {
+                                    end_points['feed_tensor']: resize.eval(
                                         feed_dict = {
-                                            input_tensor: images
+                                            end_points['input_tensor']:images
                                         }
                                     )
                                 }
@@ -139,11 +129,11 @@ def main():
 
                 end_points['step'].run(
                     feed_dict = {
-                        end_points['upper_input']: base_out.eval(
+                        end_points['upper_input']: end_points['PrePool'].eval(
                             feed_dict = {
-                                feed_tensor: resize.eval(
+                                end_points['feed_tensor']: resize.eval(
                                     feed_dict = {
-                                        input_tensor: images
+                                        end_points['input_tensor']: images
                                     }
                                 )
                             }
@@ -156,54 +146,55 @@ def main():
                    '/data/zhanglab/afeeney/chess_test',
                    global_step=0)
 
-
-    print('starting testing')
-
-    with tf.Session() as sess:
+def test(end_points,
+         data,
+         image_size=299,
+         batch_size=1,
+         verbose=False):
+    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+        # meta-graph location should be passed in.
         loader = tf.train.import_meta_graph(
             '/data/zhanglab/afeeney/chess_test-0.meta'
         )
         loader.restore(sess, tf.train.latest_checkpoint(
             '/data/zhanglab/afeeney/'
         ))
-        test_images, test_labels = data.test_set()
 
-        batch_size = 1
-        acc = 0
-        count = 0
-        verbose = False
+        # acc and count are used to average for the test accuracy.
+        acc = np.array([0,0], dtype=np.float32)
 
         # center crop
         resize = tf.image.crop_to_bounding_box(
-            image=input_tensor,
+            image=end_points['input_tensor'],
             offset_height=int((480-image_size)/2),
             offset_width=int((640-image_size)/2),
             target_height=image_size,
             target_width=image_size
         )
 
-        for index in range(len(test_labels)-batch_size-1):
+        for i in range(data.test_size()-batch_size-1):
+            images, labels = data.get_next_batch(batch_size, get_test=True)
+
             acc += end_points['acc'].eval(
                 feed_dict = {
-                    end_points['upper_input']: base_out.eval(
+                    end_points['upper_input']: end_points['PrePool'].eval(
                         feed_dict = {
-                            feed_tensor: resize.eval(
+                            end_points['feed_tensor']: resize.eval(
                                 feed_dict = {
-                                    input_tensor:test_images[index:index+1]
+                                    end_points['input_tensor']: images
                                 }
                             )
                         }
                     ),
-                    end_points['labels']: test_labels[index:index+1]
+                    end_points['labels']: labels
                 }
             )
+            print(acc)
             if verbose:
-                print('count: ' + str(count) + 'acc: ' + str(acc))
-            count += 1
+                print('count: ' + str(i) + 'acc: ' + str(acc))
 
-        print('test acc: ' + str(acc / count))
-
-    print('finished')
+    #print('test acc: ' + str(acc / num_test_images))
+    return acc / (data.test_size()-1)
 
 if __name__ == "__main__":
     main()
