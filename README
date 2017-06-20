@@ -1,0 +1,4 @@
+
+
+This network learns to localize camera pose. It uses transfer learning with Inception-Resnet-V2 to account for small datasets. Basically, after training, it can localize fairly well in the region the training photos were taken in.
+So, after training it can say an input image is at (x, y, z) coordinates and an angle a relative to some arbitrary reference frame which is defined during training. 
