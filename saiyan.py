@@ -1,14 +1,11 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.contrib.framework.python.ops.variables import get_or_create_global_step
-from net import decoder, decode_dual_stream
+from net import decode_dual_stream
 from container import Data
 from custom_helper import *
-#from cifarDownload import *
 from scenesDownload import *
 from inception_resnet_v2 import *
-from train import train, mod_train
-from test import test, mod_test
 
 slim = tf.contrib.slim
 
@@ -23,13 +20,12 @@ def main():
 
     num_classes = 7
 
-    #with tf.device('/cpu:0'):
     train_data = load_training_data()
     test_data = load_test_data()
 
     data = Data(train_data, test_data)
 
-    with tf.device('/cpu:0'):
+    with tf.device('/gpu:0'):
         input_tensor = tf.placeholder(
                         tf.float32,
                         shape=[None,480,640,3])
@@ -51,9 +47,7 @@ def main():
         exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
         variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-        #decoder(end_points, os=7)
-
-        decode_dual_stream(end_points, os=7)
+        decode_dual_stream(end_points)
 
         end_points['input_tensor'] = input_tensor
         end_points['feed_tensor'] = feed_tensor
@@ -64,8 +58,11 @@ def main():
           variables_to_restore,
           '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt',
           data,
-          batch_size=16,
+          batch_size=32,
+          num_epochs=90,
           verbose=False)
+
+    print('testing is already done!')
 
     print('starting testing')
 
@@ -83,7 +80,7 @@ def train(end_points,
           num_epochs=1,
           batch_size=32,
           verbose=False):
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
 
@@ -151,7 +148,7 @@ def test(end_points,
          image_size=299,
          batch_size=1,
          verbose=False):
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    with tf.Session() as sess:
         # meta-graph location should be passed in.
         loader = tf.train.import_meta_graph(
             '/data/zhanglab/afeeney/chess_test-0.meta'
@@ -189,7 +186,6 @@ def test(end_points,
                     end_points['labels']: labels
                 }
             )
-            print(acc)
             if verbose:
                 print('count: ' + str(i) + 'acc: ' + str(acc))
 
