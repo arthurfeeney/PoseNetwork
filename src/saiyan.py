@@ -109,7 +109,7 @@ def train(end_points,
                 if verbose and index % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
                         feed_dict = {
-                            end_points['upper_input']:\
+                            end_points['upper_input']: \
                                 end_points['PrePool'].eval(feed_dict = {
                                     end_points['feed_tensor']: resize.eval(
                                         feed_dict = {
