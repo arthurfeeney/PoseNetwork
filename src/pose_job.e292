@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/afeeney/PoseNetwork/src/main.py", line 182, in <module>
+    main()
+  File "/home/afeeney/PoseNetwork/src/main.py", line 46, in main
+    decode_dual_stream(end_points, lr=1e-4)
+  File "/home/afeeney/PoseNetwork/src/net.py", line 111, in decode_dual_stream
+    actual=model['labels']
+  File "/home/afeeney/PoseNetwork/src/net.py", line 55, in position_and_angle
+    (tf.reduce_mean(distance), tf.reduce_mean(angle_degrees)),
+NameError: name 'angle_degrees' is not defined

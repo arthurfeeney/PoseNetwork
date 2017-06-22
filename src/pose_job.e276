@@ -1,0 +1,87 @@
+2017-06-21 17:13:34.517250: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use SSE4.1 instructions, but these are available on your machine and could speed up CPU computations.
+2017-06-21 17:13:34.517279: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use SSE4.2 instructions, but these are available on your machine and could speed up CPU computations.
+2017-06-21 17:13:34.517283: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use AVX instructions, but these are available on your machine and could speed up CPU computations.
+2017-06-21 17:13:34.517286: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use AVX2 instructions, but these are available on your machine and could speed up CPU computations.
+2017-06-21 17:13:34.517289: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use FMA instructions, but these are available on your machine and could speed up CPU computations.
+2017-06-21 17:13:45.449046: I tensorflow/core/common_runtime/gpu/gpu_device.cc:940] Found device 0 with properties: 
+name: Tesla K80
+major: 3 minor: 7 memoryClockRate (GHz) 0.8235
+pciBusID 0000:04:00.0
+Total memory: 11.17GiB
+Free memory: 11.11GiB
+2017-06-21 17:13:45.449071: I tensorflow/core/common_runtime/gpu/gpu_device.cc:961] DMA: 0 
+2017-06-21 17:13:45.449076: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 0:   Y 
+2017-06-21 17:13:45.449085: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: Tesla K80, pci bus id: 0000:04:00.0)
+Traceback (most recent call last):
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 1139, in _do_call
+    return fn(*args)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 1117, in _run_fn
+    self._extend_graph()
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 1166, in _extend_graph
+    self._session, graph_def.SerializeToString(), status)
+  File "/data/zhanglab/afeeney/python/Python-3.5.0/Lib/contextlib.py", line 66, in __exit__
+    next(self.gen)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/errors_impl.py", line 466, in raise_exception_on_not_ok_status
+    pywrap_tensorflow.TF_GetCode(status))
+tensorflow.python.framework.errors_impl.InvalidArgumentError: Cannot assign a device for operation 'assert_positive/assert_less/Assert/Assert': Could not satisfy explicit device specification '/device:GPU:0' because no supported kernel for GPU devices is available.
+	 [[Node: assert_positive/assert_less/Assert/Assert = Assert[T=[DT_STRING], summarize=3, _device="/device:GPU:0"](assert_positive/assert_less/All, assert_positive/assert_less/Assert/Assert/data_0)]]
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/afeeney/PoseNetwork/src/main.py", line 170, in <module>
+    main()
+  File "/home/afeeney/PoseNetwork/src/main.py", line 59, in main
+    verbose=True)
+  File "/home/afeeney/PoseNetwork/src/main.py", line 123, in train
+    feed_dict=feed_helper(end_points, images, labels)
+  File "/home/afeeney/PoseNetwork/src/main.py", line 88, in feed_helper
+    end_points['input_tensor']: images
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 606, in eval
+    return _eval_using_default_session(self, feed_dict, self.graph, session)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 3928, in _eval_using_default_session
+    return session.run(tensors, feed_dict)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 789, in run
+    run_metadata_ptr)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 997, in _run
+    feed_dict_string, options, run_metadata)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 1132, in _do_run
+    target_list, options, run_metadata)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/client/session.py", line 1152, in _do_call
+    raise type(e)(node_def, op, message)
+tensorflow.python.framework.errors_impl.InvalidArgumentError: Cannot assign a device for operation 'assert_positive/assert_less/Assert/Assert': Could not satisfy explicit device specification '/device:GPU:0' because no supported kernel for GPU devices is available.
+	 [[Node: assert_positive/assert_less/Assert/Assert = Assert[T=[DT_STRING], summarize=3, _device="/device:GPU:0"](assert_positive/assert_less/All, assert_positive/assert_less/Assert/Assert/data_0)]]
+
+Caused by op 'assert_positive/assert_less/Assert/Assert', defined at:
+  File "/home/afeeney/PoseNetwork/src/main.py", line 170, in <module>
+    main()
+  File "/home/afeeney/PoseNetwork/src/main.py", line 59, in main
+    verbose=True)
+  File "/home/afeeney/PoseNetwork/src/main.py", line 123, in train
+    feed_dict=feed_helper(end_points, images, labels)
+  File "/home/afeeney/PoseNetwork/src/main.py", line 81, in feed_helper
+    target_width=image_size
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/image_ops_impl.py", line 537, in crop_to_bounding_box
+    assert_ops = _CheckAtLeast3DImage(image, require_static=False)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/image_ops_impl.py", line 177, in _CheckAtLeast3DImage
+    ["all dims of 'image.shape' "
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/check_ops.py", line 198, in assert_positive
+    return assert_less(zero, x, data=data, summarize=summarize)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/check_ops.py", line 401, in assert_less
+    return control_flow_ops.Assert(condition, data, summarize=summarize)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/util/tf_should_use.py", line 170, in wrapped
+    return _add_should_use_warning(fn(*args, **kwargs))
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/control_flow_ops.py", line 124, in Assert
+    condition, data, summarize, name="Assert")
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/gen_logging_ops.py", line 37, in _assert
+    summarize=summarize, name=name)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/op_def_library.py", line 767, in apply_op
+    op_def=op_def)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 2506, in create_op
+    original_op=self._default_original_op, op_def=op_def)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 1269, in __init__
+    self._traceback = _extract_stack()
+
+InvalidArgumentError (see above for traceback): Cannot assign a device for operation 'assert_positive/assert_less/Assert/Assert': Could not satisfy explicit device specification '/device:GPU:0' because no supported kernel for GPU devices is available.
+	 [[Node: assert_positive/assert_less/Assert/Assert = Assert[T=[DT_STRING], summarize=3, _device="/device:GPU:0"](assert_positive/assert_less/All, assert_positive/assert_less/Assert/Assert/data_0)]]
+

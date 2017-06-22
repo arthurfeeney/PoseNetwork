@@ -1,59 +1,59 @@
 import tensorflow as tf
+import numpy as np
 
 slim = tf.contrib.slim
 
 def euclidean_distance(predicted, actual, scale = 10):
-    x, q = tf.split(tf.reduce_mean(predicted, axis=0), [3,4], axis=0)
-    x_, q_ = tf.split(tf.reduce_mean(actual, axis=0), [3,4], axis=0)
+    x, q = tf.split(predicted, [3,4], axis=0)
+    x_, q_ = tf.split(actual, [3,4], axis=0)
 
     b = tf.constant(scale, dtype=tf.float32)
 
     return tf.norm(x_ - x) + \
            tf.multiply(b, tf.norm(q_ - tf.divide(q, tf.norm(q))))
 
-
-# from geometric loss functions for cpr with dl
+# from geometric loss functions paper
 def distance_with_learned_scale(predicted, actual):
-    position, orientation = tf.split(tf.reduce_mean(predicted, axis=0),
-                              [4,5],
-                              axis=0)
+    position, orientation = tf.split(predicted, [4,5], axis=1)
 
-    x, s_x = tf.split(position, [3,1], axis=0)
+    x, s_x = tf.split(position, [3,1], axis=1)
 
-    q, s_q = tf.split(orientation, [4, 1], axis=0)
+    q, s_q = tf.split(orientation, [4, 1], axis=1)
 
-    x_, q_ = tf.split(tf.reduce_mean(actual, axis=0), [3,4], axis=0)
+    x_, q_ = tf.split(actual, [3,4], axis=1)
 
     left = tf.add(tf.multiply(tf.norm(x_ - x), tf.exp(-s_x)), s_x)
 
     unit_q = tf.divide(q, tf.norm(q))
 
-    right = tf.add(tf.multiply(tf.norm(q_ - unit_q), tf.exp(s_q)), s_q)
+    right = tf.add(tf.multiply(tf.norm(q_ - unit_q), tf.exp(-s_q)), s_q)
 
     return left + right
 
 
 def position_and_angle(predicted, actual):
     position, orientation = \
-        tf.split(tf.reduce_mean(predicted, axis=0), [4,5], axis=0)
+        tf.split(predicted, [4,5], axis=1)
 
-    x, _ = tf.split(position, [3,1], axis=0)
+    x, _ = tf.split(position, [3,1], axis=1)
 
-    q, _ = tf.split(orientation, [4,1], axis=0)
+    q, _ = tf.split(orientation, [4,1], axis=1)
 
-    x_, q_ = tf.split(tf.reduce_mean(actual, axis=0), [3,4], axis=0)
+    x_, q_ = tf.split(actual, [3,4], axis=1)
 
     distance = tf.norm(x_ - x)
 
     unit_q = tf.divide(q, tf.norm(q))
 
-    cos_angle = tf.reduce_sum(tf.multiply(unit_q, q))
+    #cos_angle = tf.reduce_sum(tf.multiply(unit_q, q))
+    #angle = tf.acos(tf.clip_by_value(cos_angle, -1.0, 1.0))
+    #angle_degrees = tf.divide(tf.multiply(angle, 180), np.pi)
 
-    angle = tf.acos(tf.clip_by_value(cos_angle, -1.0, 1.0))
+    angle = tf.norm(q_ - unit_q)
 
-    #angle = tf.norm(q_ - unit_q)
-
-    return tf.stack((distance, angle), axis=0)
+    return tf.stack(
+            (tf.reduce_mean(distance), tf.reduce_mean(angle)),
+            axis=0)
 
 def decode_dual_stream(model, lr=1e-3):
 
@@ -79,10 +79,16 @@ def decode_dual_stream(model, lr=1e-3):
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
-    loc = slim.conv2d(net, 32, (3,3), stride=1,
+    loc = slim.conv2d(net,
+                      32,
+                      (3,3),
+                      stride=1,
                       normalizer_fn=slim.batch_norm)
 
-    ori = slim.conv2d(net, 32, (3,3), stride=1,
+    ori = slim.conv2d(net,
+                      32,
+                      (3,3),
+                      stride=1,
                       normalizer_fn=slim.batch_norm)
 
     loc = slim.flatten(loc)
@@ -101,8 +107,8 @@ def decode_dual_stream(model, lr=1e-3):
     )
 
     distance = position_and_angle(
-        logits,
-        model['labels']
+        predicted=logits,
+        actual=model['labels']
     )
 
     model['step'] = tf.train.AdamOptimizer(

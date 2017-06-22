@@ -1,0 +1,37 @@
+Traceback (most recent call last):
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/common_shapes.py", line 671, in _call_cpp_shape_fn_impl
+    input_tensors_as_shapes, status)
+  File "/data/zhanglab/afeeney/python/Python-3.5.0/Lib/contextlib.py", line 66, in __exit__
+    next(self.gen)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/errors_impl.py", line 466, in raise_exception_on_not_ok_status
+    pywrap_tensorflow.TF_GetCode(status))
+tensorflow.python.framework.errors_impl.InvalidArgumentError: Shape must be at least rank 2 but is rank 1 for 'split_4' (op: 'SplitV') with input shapes: [9], [2], [] and with computed input tensors: input[1] = <4 5>, input[2] = <1>.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/afeeney/PoseNetwork/src/main.py", line 182, in <module>
+    main()
+  File "/home/afeeney/PoseNetwork/src/main.py", line 46, in main
+    decode_dual_stream(end_points, lr=1e-4)
+  File "/home/afeeney/PoseNetwork/src/net.py", line 109, in decode_dual_stream
+    actual=model['labels']
+  File "/home/afeeney/PoseNetwork/src/net.py", line 36, in position_and_angle
+    tf.split(tf.reduce_mean(predicted, axis=0), [4,5], axis=1)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/array_ops.py", line 1226, in split
+    name=name)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/ops/gen_array_ops.py", line 3289, in _split_v
+    num_split=num_split, name=name)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/op_def_library.py", line 767, in apply_op
+    op_def=op_def)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 2508, in create_op
+    set_shapes_for_outputs(ret)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 1873, in set_shapes_for_outputs
+    shapes = shape_func(op)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/ops.py", line 1823, in call_with_requiring
+    return call_cpp_shape_fn(op, require_shape_fn=True)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/common_shapes.py", line 610, in call_cpp_shape_fn
+    debug_python_shape_fn, require_shape_fn)
+  File "/data/zhanglab/afeeney/python3/lib/python3.5/site-packages/tensorflow/python/framework/common_shapes.py", line 676, in _call_cpp_shape_fn_impl
+    raise ValueError(err.message)
+ValueError: Shape must be at least rank 2 but is rank 1 for 'split_4' (op: 'SplitV') with input shapes: [9], [2], [] and with computed input tensors: input[1] = <4 5>, input[2] = <1>.
