@@ -1,4 +1,0 @@
-  File "/home/afeeney/PoseNetwork/src/main.py", line 173
-    return acc / 100-1)
-                      ^
-SyntaxError: invalid syntax
