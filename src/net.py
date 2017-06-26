@@ -4,6 +4,10 @@ import numpy as np
 slim = tf.contrib.slim
 
 def euclidean_distance(predicted, actual, scale = 10):
+    """
+    computes the sum of the euclidean distance between the predicted and actual
+    position and orientation. -> dist(pos) + scale * dist(ori)
+    """
     x, q = tf.split(predicted, [3,4], axis=0)
     x_, q_ = tf.split(actual, [3,4], axis=0)
 
@@ -34,12 +38,6 @@ def distance_with_learned_scale(predicted, actual):
 
     unit_q = tf.divide(q, norm_q)
 
-    #arr = tf.TensorArray(tf.float32, 1, dynamic_size=True, infer_shape=False)
-
-    #l_q = arr.unstack(q)
-    #q_norms = [tf.norm(qwop) for qwop in l_q]
-    #unit_q = l_q.stack(q / q_norms)
-
     right = tf.add(
                 tf.multiply(
                     tf.norm(tf.subtract(q_, unit_q), axis=1),
@@ -51,6 +49,9 @@ def distance_with_learned_scale(predicted, actual):
     return tf.add(left, right)
 
 def _get_angle(q):
+    """
+    converts the quaternion to angle radian.
+    """
     qr, rest = tf.split(q, [1,3], axis=1)
 
     left_arg = tf.sqrt(tf.reduce_sum(tf.square(rest)))
@@ -75,11 +76,6 @@ def position_and_angle(predicted, actual):
 
     distance = tf.norm(tf.subtract(x_, x), axis=1)
 
-    #arr = tf.TensorArray(tf.float32, 1, dynamic_size=True, infer_shape=False)
-    #l_q = arr.unstack(q)
-    #q_norms = [tf.norm(qwop) for qwop in l_q]
-    #unit_q = l_q.stack(q / q_norms)
-
     norm_q = tf.norm(q, axis=1, keep_dims=True)
 
     unit_q = tf.divide(q, norm_q)
@@ -94,7 +90,10 @@ def position_and_angle(predicted, actual):
 
 
 def shared_dual_stream(model, lr=1e-3):
-
+    """
+    upper part of network for pose regression. Outputs pose and two scalar
+    values used when computing the learning loss.
+    """
     net = model['PrePool']
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
