@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from net import decode_dual_stream
+from net import shared_dual_stream, decode_dual_stream
 from container import Data
 from scenesDownload import *
 from inception_resnet_v2 import *
@@ -42,8 +42,7 @@ def main():
         exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
         variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-
-        decode_dual_stream(end_points, lr=1e-4)
+        shared_dual_stream(end_points, lr=1e-4)
 
         end_points['input_tensor'] = input_tensor
         end_points['feed_tensor'] = feed_tensor
@@ -57,14 +56,14 @@ def main():
           '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt',
           data,
           batch_size=32,
-          num_epochs=20,
+          num_epochs=80,
           verbose=True)
 
     print('finished training')
 
     error = test(end_points, data)
 
-    print('distance' + str(error[0]) + ' angle ' + str(error[1]))
+    print('distance: ' + str(error[0]) + ' angle: ' + str(error[1]))
 
 def feed_helper(end_points,
                 images,
@@ -95,7 +94,8 @@ def feed_helper(end_points,
                     }
                 )
             }
-        ), end_points['labels']: labels
+        ),
+        end_points['labels']: labels
     }
 
 def train(end_points,
@@ -117,20 +117,21 @@ def train(end_points,
         loader = tf.train.Saver(variables_to_restore)
         loader.restore(sess, checkpoint_file)
 
-        for i in range(num_epochs):
-            for index in range(0, data.train_size()-batch_size-1, batch_size):
+        for epoch in range(num_epochs):
+            for step in range(0, data.train_size()-batch_size-1, batch_size):
                 data.shuffle()
 
                 images, labels = data.get_next_batch(batch_size)
 
-                if verbose and index % (2 * batch_size) == 0:
+                if verbose and step % (2 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
                         feed_dict=feed_helper(
                                     end_points,
                                     images,
                                     labels)
                     )
-                    print('step: '+str(index)+' acc: '+str(batch_acc))
+                    print('epoch: ' + str(epoch) + ' step: ' + \
+                          str(step) + ' acc: ' + str(batch_acc))
 
                 end_points['step'].run(
                     feed_dict=feed_helper(end_points, images, labels)
