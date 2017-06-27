@@ -31,14 +31,19 @@ def distance_with_learned_scale(predicted, actual):
 
     x_, q_ = tf.split(actual, [3,4], axis=1)
 
-    left = tf.add(tf.multiply(tf.norm(tf.subtract(x_, x), axis=1),
-                    tf.exp(-s_x)), s_x)
+    loss_pos = tf.add(
+                    tf.multiply(
+                        tf.norm(tf.subtract(x_, x), axis=1),
+                        tf.exp(-s_x)
+                    ),
+                    s_x
+                )
 
     norm_q = tf.norm(q, axis=1, keep_dims=True)
 
     unit_q = tf.divide(q, norm_q)
 
-    right = tf.add(
+    loss_ori = tf.add(
                 tf.multiply(
                     tf.norm(tf.subtract(q_, unit_q), axis=1),
                     tf.exp(-s_q)
@@ -46,7 +51,7 @@ def distance_with_learned_scale(predicted, actual):
                 s_q
             )
 
-    return tf.add(left, right)
+    return tf.add(loss_pos, loss_ori)
 
 def _get_angle(q):
     """
@@ -80,8 +85,9 @@ def position_and_angle(predicted, actual):
 
     unit_q = tf.divide(q, norm_q)
 
-    angle = tf.abs(tf.subtract(_get_angle(q_), _get_angle(unit_q)))
-    angle = tf.divide(tf.multiply(angle, 180.0), np.pi) # to degrees
+    radian_angle = tf.abs(tf.subtract(_get_angle(q_), _get_angle(unit_q)))
+
+    angle = tf.divide(tf.multiply(radian_angle, 180.0), np.pi)
 
     return tf.stack(
                 (tf.reduce_mean(distance), tf.reduce_mean(angle)),
@@ -105,10 +111,11 @@ def shared_dual_stream(model, lr=1e-3):
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])/2),
+                                tf.Dimension(int(net.get_shape()[3])),
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
+
 
     net = slim.conv2d_transpose(net,
                                 tf.Dimension(int(net.get_shape()[3])/2),
@@ -138,10 +145,12 @@ def shared_dual_stream(model, lr=1e-3):
 
     loc_1 = slim.fully_connected(loc_input,
                                  1024,
+                                 activation_fn=None,
                                  normalizer_fn=slim.batch_norm)
 
     ori_1 = slim.fully_connected(ori_input,
                                  1024,
+                                 activation_fn=None,
                                  normalizer_fn=slim.batch_norm)
 
     loc_and_share_ori = tf.add(loc_1, tf.multiply(ori_1, 0.7))
@@ -150,10 +159,12 @@ def shared_dual_stream(model, lr=1e-3):
 
     loc = slim.fully_connected(loc_and_share_ori,
                                4,
+                               activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     ori = slim.fully_connected(ori_and_share_loc,
                                5,
+                               activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     logits = tf.concat((loc, ori), axis=1)

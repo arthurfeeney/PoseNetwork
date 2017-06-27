@@ -127,8 +127,14 @@ def load_training_data():
                     dtype=float
                 )
     pls = np.empty(shape=[_num_images_train, 7], dtype=float)
+
+    with open(data_path + 'TrainSplit.txt') as split_file:
+        split = []
+        for num in split_file:
+            split.append(int(num[-2]) - 1)
+
     begin = 0
-    for i in [0,1,3,5]:
+    for i in split:
         images_batch = [None]*_images_per_file
         pls_batch = [None]*_images_per_file
 
@@ -169,7 +175,13 @@ def load_test_data():
                 )
     pls = np.empty(shape=[2000, 7], dtype=float)
     begin = 0
-    for i in [2, 4]:
+
+    with open(data_path + 'TestSplit.txt') as split_file:
+        split = []
+        for num in split_file:
+            split.append(int(num[-2]) - 1)
+
+    for i in split:
         images_batch = [None]*_images_per_file
         pls_batch = [None]*_images_per_file
 

@@ -48,7 +48,6 @@ def main():
         end_points['feed_tensor'] = feed_tensor
 
 
-
     print('starting training')
 
     train(end_points,
@@ -123,7 +122,7 @@ def train(end_points,
 
                 images, labels = data.get_next_batch(batch_size)
 
-                if verbose and step % (2 * batch_size) == 0:
+                if verbose and step % (20 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
                         feed_dict=feed_helper(
                                     end_points,
@@ -144,8 +143,9 @@ def train(end_points,
 def test(end_points,
          data,
          image_size=299,
-         batch_size=1,
+         bath_size=1,
          verbose=False):
+
     with tf.Session() as sess:
         # meta-graph location should be passed in.
         loader = tf.train.import_meta_graph(
