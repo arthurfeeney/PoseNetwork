@@ -67,7 +67,7 @@ def _get_angle(q):
 
 def position_and_angle(predicted, actual):
     """
-    computes the position and angle error for printing.
+    computes the position and angle error for printing and test accuracy.
     it uses axis 1 to apply function to each element of batch.
     The math functions should all be element wise already.
     """
@@ -116,26 +116,19 @@ def shared_dual_stream(model, lr=1e-3):
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
-
-    net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])/2),
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
-
     left_1 = slim.conv2d(net,
-                         32,
+                         16,
                          (3,3),
                          stride=1,
                          normalizer_fn=slim.batch_norm)
 
     right_1 = slim.conv2d(net,
-                          32,
+                          16,
                           (3,3),
                           stride=1,
                           normalizer_fn=slim.batch_norm)
 
-    left_and_share_right = tf.add(left_1, tf.multiply(right_1, 0.7))
+    left_and_share_right = tf.add(left_1, tf.multiply(right_1, 0.3))
 
     right_and_share_left = tf.add(right_1, tf.multiply(left_1, 0.7))
 
@@ -153,7 +146,7 @@ def shared_dual_stream(model, lr=1e-3):
                                  activation_fn=None,
                                  normalizer_fn=slim.batch_norm)
 
-    loc_and_share_ori = tf.add(loc_1, tf.multiply(ori_1, 0.7))
+    loc_and_share_ori = tf.add(loc_1, tf.multiply(ori_1, 0.3))
 
     ori_and_share_loc = tf.add(ori_1, tf.multiply(loc_1, 0.7))
 
@@ -185,9 +178,10 @@ def shared_dual_stream(model, lr=1e-3):
 
     model['acc'] = distance
 
-
 def decode_dual_stream(model, lr=1e-3):
-
+    """
+    Implementation of network from the hourglass networks paper.
+    """
     net = model['PrePool']
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
@@ -205,34 +199,33 @@ def decode_dual_stream(model, lr=1e-3):
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])/2),
+                                tf.Dimension(int(net.get_shape()[3])),
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
-    loc = slim.conv2d(net,
+    net = slim.conv2d(net,
                       32,
                       (3,3),
                       stride=1,
                       normalizer_fn=slim.batch_norm)
 
-    ori = slim.conv2d(net,
-                      32,
-                      (3,3),
-                      stride=1,
-                      normalizer_fn=slim.batch_norm)
+    net = slim.flatten(net)
 
-    loc = slim.flatten(loc)
+    net = slim.fully_connected(net,
+                               1024,
+                               activation_fn=None,
+                               normalizer_fn=slim.batch_norm)
 
-    ori = slim.flatten(ori)
+    loc = slim.fully_connected(net,
+                               4,
+                               activation_fn=None,
+                               normalizer_fn=slim.batch_norm)
 
-    loc = slim.fully_connected(loc, 1024, normalizer_fn=slim.batch_norm)
-
-    ori = slim.fully_connected(ori, 1024, normalizer_fn=slim.batch_norm)
-
-    loc = slim.fully_connected(loc, 4, normalizer_fn=slim.batch_norm)
-
-    ori = slim.fully_connected(ori, 5, normalizer_fn=slim.batch_norm)
+    ori = slim.fully_connected(net,
+                               5,
+                               activation_fn=None,
+                               normalizer_fn=slim.batch_norm)
 
     logits = tf.concat((loc, ori), axis=1)
 

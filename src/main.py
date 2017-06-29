@@ -5,8 +5,6 @@ from container import Data
 from scenesDownload import *
 from inception_resnet_v2 import *
 
-slim = tf.contrib.slim
-
 def main():
 
     checkpoint_file = \
@@ -16,8 +14,10 @@ def main():
 
     num_classes = 7
 
-    train_data = load_training_data()
-    test_data = load_test_data()
+    set_data_path('/data/zhanglab/afeeney/7scenes/')
+    train_data = load_training_data('chess/', 4000)
+    set_data_path('/data/zhanglab/afeeney/7scenes/')
+    test_data = load_test_data('chess/', 2000)
 
     data = Data(train_data, test_data)
 
@@ -55,12 +55,16 @@ def main():
           '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt',
           data,
           batch_size=32,
-          num_epochs=80,
+          num_epochs=90,
           verbose=True)
 
     print('finished training')
 
+    print('starting testing')
+
     error = test(end_points, data)
+
+    print('finished testing')
 
     print('distance: ' + str(error[0]) + ' angle: ' + str(error[1]))
 
@@ -143,7 +147,7 @@ def train(end_points,
 def test(end_points,
          data,
          image_size=299,
-         bath_size=1,
+         batch_size=1,
          verbose=False):
 
     with tf.Session() as sess:

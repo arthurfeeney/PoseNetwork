@@ -1,5 +1,9 @@
 
-# pretty heavily modified version of cifarDownload.
+"""
+this script is used to load the 7scenes localization dataset.
+It does not load the depth information because I don't need it.
+But it should be fairly simple to add that in.
+"""
 
 import numpy as np
 import pickle
@@ -7,60 +11,26 @@ import os
 from PIL import Image
 import re
 import math
-#from dataset import one_hot_encoded
+
 
 ########################################################################
 
 # Directory where you want to download and save the data-set.
 # Set this before you start calling any of the functions below.
-data_path = "/data/zhanglab/afeeney/7scenes/chess/"
+data_path = ''
 
-# URL for the data-set on the internet.
-data_url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+def set_data_path(path):
+    global data_path
+    data_path = path
 
 img_height = 480
 img_width = 640
 
 num_channels = 3
 
-img_size_flat = img_height * img_width * num_channels
-
 num_classes = 7
 
-_num_files_train = 4
-
-
 _images_per_file = 1000
-
-# Total number of images in the training-set.
-_num_images_train = _num_files_train * _images_per_file
-
-def _get_file_path(filename=""):
-    """
-    Return the full path of a data-file for the data-set.
-    If filename=="" then return the directory of the files.
-    """
-
-    return os.path.join(data_path, "chess/", filename)
-
-def _convert_images(raw):
-    """
-    Convert images from the CIFAR-10 format and
-    return a 4-dim array with shape: [image_number, height, width, channel]
-    where the pixels are floats between 0.0 and 1.0.
-    """
-
-    # Convert the raw images from the data-files to floating-points.
-    raw_float = np.array(raw, dtype=float) / 255.0
-
-    # Reshape the array to 4-dimensions.
-    images = raw_float.reshape([-1, num_channels, img_height, img_width])
-
-    # Reorder the indices of the array.
-    images = images.transpose([0, 2, 3, 1])
-
-    return images
-
 
 def _load_data(filename):
     # Load an image
@@ -71,7 +41,7 @@ def _load_data(filename):
     return image
 
 # loads the label as matrix and converts it to a quaternion.
-def _load_cls(filename):
+def _load_pls(filename):
     # loads the 4x4 matrix label for cameras pose.
     label_file = open(data_path + filename, 'r')
 
@@ -120,13 +90,15 @@ def _load_cls(filename):
 
     return label
 
-def load_training_data():
+def load_training_data(scene, size):
+    global data_path
+    data_path = data_path + scene
+
     images = np.zeros(
-                    shape=[_num_images_train, img_height,
-                           img_width,num_channels],
+                    shape=[size, img_height, img_width,num_channels],
                     dtype=float
                 )
-    pls = np.empty(shape=[_num_images_train, 7], dtype=float)
+    pls = np.empty(shape=[size, 7], dtype=float)
 
     with open(data_path + 'TrainSplit.txt') as split_file:
         split = []
@@ -147,7 +119,7 @@ def load_training_data():
 
             pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
 
-            pl = _load_cls(filename=pls_filename)
+            pl = _load_pls(filename=pls_filename)
 
             images_batch[j] = image
 
@@ -167,13 +139,15 @@ def load_training_data():
 
     return images, pls
 
-def load_test_data():
+def load_test_data(scene, size):
+    global data_path
+    data_path = data_path + scene
+
     images = np.zeros(
-                    shape=[2000, img_height,
-                           img_width,num_channels],
+                    shape=[size, img_height, img_width,num_channels],
                     dtype=float
                 )
-    pls = np.empty(shape=[2000, 7], dtype=float)
+    pls = np.empty(shape=[size, 7], dtype=float)
     begin = 0
 
     with open(data_path + 'TestSplit.txt') as split_file:
@@ -194,7 +168,7 @@ def load_test_data():
 
             pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
 
-            pl = _load_cls(filename=pls_filename)
+            pl = _load_pls(filename=pls_filename)
 
             images_batch[j] = image
             pls_batch[j] = pl
