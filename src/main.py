@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 from net import shared_dual_stream, decode_dual_stream
-from container import Data
-from scenesDownload import *
+from data_class import Data
+from scenes_download import *
 from inception_resnet_v2 import *
 
 def main():
@@ -47,12 +47,11 @@ def main():
         end_points['input_tensor'] = input_tensor
         end_points['feed_tensor'] = feed_tensor
 
-
     print('starting training')
 
     train(end_points,
           variables_to_restore,
-          '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt',
+          checkpoint_file
           data,
           batch_size=32,
           num_epochs=90,
@@ -109,6 +108,7 @@ def train(end_points,
           num_epochs=1,
           batch_size=32,
           verbose=False):
+
     with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -128,10 +128,9 @@ def train(end_points,
 
                 if verbose and step % (20 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
-                        feed_dict=feed_helper(
-                                    end_points,
-                                    images,
-                                    labels)
+                        feed_dict = feed_helper(end_points,
+                                                images,
+                                                labels)
                     )
                     print('epoch: ' + str(epoch) + ' step: ' + \
                           str(step) + ' acc: ' + str(batch_acc))
@@ -169,19 +168,18 @@ def test(end_points,
             images, labels = data.get_next_batch(batch_size, get_test=True)
 
             acc += end_points['acc'].eval(
-                feed_dict=feed_helper(
-                    end_points,
-                    images,
-                    labels,
-                    random_crop=False,
-                    image_size=image_size
-                )
+                feed_dict=feed_helper(end_points,
+                                      images,
+                                      labels,
+                                      random_crop=False,
+                                      image_size=image_size)
             )
 
             if verbose:
                 print('count: ' + str(i) + 'acc: ' + str(acc))
 
-    return acc / count
+    ave_test_acc = acc / count
+    return ave_test_acc
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,8 @@
 import tensorflow as tf
 
+"""
+only used for my implementation of Googlenet
+"""
 
 global batch_count
 global bias_count
