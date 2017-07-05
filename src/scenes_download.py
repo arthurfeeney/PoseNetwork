@@ -13,10 +13,8 @@ import re
 import math
 
 
-########################################################################
-
 # Directory where you want to download and save the data-set.
-# Set this before you start calling any of the functions below.
+# Set this before you calling any functions to load data.
 data_path = ''
 
 def set_data_path(path):
@@ -37,6 +35,9 @@ def _load_data(filename):
     load_image = Image.open(data_path + filename)
 
     image = np.asarray(load_image)
+
+    # preprocess the image to the range that the model expects.
+    image = 2 * (image / 255.0) - 1.0
 
     return image
 
@@ -88,6 +89,8 @@ def _load_pls(filename):
             q[2] = (m[1][2] + m[2][1]) / s
             q[3] = .25 * s
 
+    q = q / np.linalg.norm(q) # make sure that it is unit length
+
     label = np.concatenate((location, q))
 
     return label
@@ -105,7 +108,7 @@ def load_training_data(scene, size):
     with open(data_path + 'TrainSplit.txt') as split_file:
         split = []
         for num in split_file:
-            split.append(int(num[-2]) - 1)
+            split.append(int(num[-2]) - 1) # -2 because of '\n'.
 
     begin = 0
     for i in split:
@@ -132,7 +135,6 @@ def load_training_data(scene, size):
         # End-index for the current batch.
         end = begin + num_images
 
-        # Store the images into the array.
         images[begin:end, :] = images_batch
 
         pls[begin:end] = pls_batch
@@ -155,7 +157,7 @@ def load_test_data(scene, size):
     with open(data_path + 'TestSplit.txt') as split_file:
         split = []
         for num in split_file:
-            split.append(int(num[-2]) - 1)
+            split.append(int(num[-2]) - 1) # -2 because of '\n'.
 
     for i in split:
         images_batch = [None]*_images_per_file
@@ -180,12 +182,9 @@ def load_test_data(scene, size):
         # End-index for the current batch.
         end = begin + num_images
 
-        # Store the images into the array.
         images[begin:end, :] = images_batch
 
-        # Store the class-numbers into the array.
         pls[begin:end] = pls_batch
 
-        # The begin-index for the next batch is the current end-index.
         begin = end
     return images, pls

@@ -10,14 +10,18 @@ def main():
     checkpoint_file = \
         '/data/zhanglab/afeeney/inception_resnet_v2_2016_08_30.ckpt'
 
+    scenes_path = '/data/zhanglab/afeeney/7scenes/'
+
+    scene = 'chess/'
+
     image_size = 299
 
     num_classes = 7
 
-    set_data_path('/data/zhanglab/afeeney/7scenes/')
-    train_data = load_training_data('chess/', 4000)
-    set_data_path('/data/zhanglab/afeeney/7scenes/')
-    test_data = load_test_data('chess/', 2000)
+    set_data_path(scenes_path)
+    train_data = load_training_data(scene, 4000)
+    set_data_path(scenes_path)
+    test_data = load_test_data(scene, 2000)
 
     data = Data(train_data, test_data)
 
@@ -51,7 +55,7 @@ def main():
 
     train(end_points,
           variables_to_restore,
-          checkpoint_file
+          checkpoint_file,
           data,
           batch_size=32,
           num_epochs=90,
@@ -122,7 +126,8 @@ def train(end_points,
 
         for epoch in range(num_epochs):
             for step in range(0, data.train_size()-batch_size-1, batch_size):
-                data.shuffle()
+                if epoch != 0:
+                    data.shuffle()
 
                 images, labels = data.get_next_batch(batch_size)
 
@@ -161,6 +166,8 @@ def test(end_points,
         # acc and count are used to average for the test accuracy.
         acc = np.array([0,0], dtype=np.float32)
         count = 0
+
+        data.reset_batch()
 
         for i in range(data.test_size()-batch_size-1):
             count += 1

@@ -17,6 +17,9 @@ class Data:
     def test_size(self):
         return self.__num_test_images
 
+    def reset_batch():
+        self.__last_batch_end = 0
+
     def get_next_batch(self, batch_size, get_test=False):
         batch_indices = \
             np.array(
@@ -37,9 +40,6 @@ class Data:
                 self.__test_images[batch_indices[0]:batch_indices[-1]],
                 self.__test_labels[batch_indices[0]:batch_indices[-1]]
             )
-
-    def test_set(self):
-        return self.__test_images, self.__test_labels
 
     # shuffles images and labels together. also resets the index of last batch.
     def shuffle(self, shuffle_test = False):

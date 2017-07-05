@@ -53,15 +53,13 @@ def distance_with_learned_scale(predicted, actual):
 
     return tf.add(loss_pos, loss_ori)
 
-def _get_angle(q):
+def _get_orientation_error(q1, q2):
     """
-    converts the quaternion to angle radian.
+    converts the quaternion to angle radian. Better than just using
+    the norm of the two for global comparisons. Maybe use this in the loss?
     """
-    qr, rest = tf.split(q, [1,3], axis=1)
 
-    left_arg = tf.sqrt(tf.reduce_sum(tf.square(rest)))
-
-    angle = tf.multiply(2.0, tf.atan2(left_arg, qr))
+    angle = tf.norm(q1 - q2, axis=1)
 
     return angle
 
@@ -85,7 +83,7 @@ def position_and_angle(predicted, actual):
 
     unit_q = tf.divide(q, norm_q)
 
-    radian_angle = tf.abs(tf.subtract(_get_angle(q_), _get_angle(unit_q)))
+    radian_angle = tf.abs(_get_orientation_error(q_, unit_q))
 
     angle = tf.divide(tf.multiply(radian_angle, 180.0), np.pi)
 
@@ -105,50 +103,50 @@ def shared_dual_stream(model, lr=1e-3):
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
 
     net = slim.conv2d_transpose(model['upper_input'],
-                                tf.Dimension(int(net.get_shape()[3])),
+                                768,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])),
+                                384,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
     left_1 = slim.conv2d(net,
-                         16,
+                         20,
                          (3,3),
                          stride=1,
                          normalizer_fn=slim.batch_norm)
 
     right_1 = slim.conv2d(net,
-                          16,
+                          20,
                           (3,3),
                           stride=1,
                           normalizer_fn=slim.batch_norm)
 
     left_and_share_right = tf.add(left_1, tf.multiply(right_1, 0.3))
 
-    right_and_share_left = tf.add(right_1, tf.multiply(left_1, 0.7))
+    right_and_share_left = tf.add(right_1, tf.multiply(left_1, 0.3))
 
     loc_input = slim.flatten(left_and_share_right)
 
     ori_input = slim.flatten(right_and_share_left)
 
     loc_1 = slim.fully_connected(loc_input,
-                                 1024,
+                                 512,
                                  activation_fn=None,
                                  normalizer_fn=slim.batch_norm)
 
     ori_1 = slim.fully_connected(ori_input,
-                                 1024,
+                                 512,
                                  activation_fn=None,
                                  normalizer_fn=slim.batch_norm)
 
     loc_and_share_ori = tf.add(loc_1, tf.multiply(ori_1, 0.3))
 
-    ori_and_share_loc = tf.add(ori_1, tf.multiply(loc_1, 0.7))
+    ori_and_share_loc = tf.add(ori_1, tf.multiply(loc_1, 0.3))
 
     loc = slim.fully_connected(loc_and_share_ori,
                                4,
@@ -193,13 +191,13 @@ def decode_dual_stream(model, lr=1e-3):
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])),
+                                768,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                tf.Dimension(int(net.get_shape()[3])),
+                                384),
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
