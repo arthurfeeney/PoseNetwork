@@ -25,7 +25,7 @@ def main():
 
     data = Data(train_data, test_data)
 
-    with tf.device('/cpu:0'):
+    with tf.device('/gpu:0'):
         input_tensor = tf.placeholder(
                         tf.float32,
                         shape=[None,480,640,3])
@@ -37,14 +37,14 @@ def main():
         arg_scope = inception_resnet_v2_arg_scope()
         with slim.arg_scope(arg_scope):
             logits, end_points = inception_resnet_v2(
-                    feed_tensor,
-                    num_classes=num_classes,
-                    is_training=True)
+                                        feed_tensor,
+                                        num_classes=num_classes,
+                                        is_training=True)
 
         end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
 
         exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
-        variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
+        variables_to_restore = slim.get_variables_to_restore(exclude=exclude)
 
         decode_dual_stream(end_points, lr=1e-4)
 
@@ -63,13 +63,13 @@ def main():
 
     print('finished training')
 
-    print('starting testing')
+    #print('starting testing')
 
-    distance_error, angle_error = test(end_points, data)
+    #distance_error, angle_error = test(end_points, data)
 
-    print('finished testing')
+    #print('finished testing')
 
-    print('distance: ' + str(distance_error) + ' angle: ' + str(angle_error))
+    #print('distance: ' + str(distance_error) + ' angle: ' + str(angle_error))
 
 def feed_helper(end_points,
                 images,
@@ -104,7 +104,7 @@ def feed_helper(end_points,
                 )
             }
         ),
-       end_points['labels']: labels
+        end_points['labels']: labels
     }
 
 def train(end_points,
@@ -114,8 +114,6 @@ def train(end_points,
           image_size=299,
           num_epochs=1,
           batch_size=32,
-          s_x=0.0,
-          s_q=-3.0,
           verbose=False):
 
     with tf.Session() as sess:
@@ -147,8 +145,6 @@ def train(end_points,
 
 
                 feed_dict = feed_helper(end_points, images, labels)
-                feed_dict.update({end_points['x_scale']: s_x})
-                feed_dict.update({end_points['q_scale']: s_q})
 
                 end_points['step'].run(
                     feed_dict=feed_dict
@@ -173,7 +169,6 @@ def test(end_points,
             '/data/zhanglab/afeeney/'
         ))
 
-        # acc and count are used to average for the test accuracy.
         acc = np.array([0,0], dtype=np.float32)
         count = 0
 

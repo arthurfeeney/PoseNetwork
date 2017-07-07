@@ -14,18 +14,10 @@ def euclidean_distance(predicted, actual, scale = 6):
     b = tf.constant(scale, dtype=tf.float32)
 
     return tf.norm(x_ - x, asxis=1) + \
-           tf.multiply(
-                   b,
-                   tf.norm(q_ - tf.divide(
-                                    q,
-                                    tf.norm(q, axis=1, keep_dims=True)
-                                    ),
-                          axis=1
-                          )
-            )
+           (b * tf.norm(q_ - (q / tf.norm(q, axis=1, keep_dims=True)),axis=1))
 
 # from geometric loss functions paper
-def _distance_with_learned_scale(predicted, actual, s_x, s_q):
+def _distance_with_learned_scale(predicted, actual, s_x=2.0, s_q=2.0):
     """
     loss function learns a scale between position and orientation.
     Uses axis one so that the function is applied to each element of the batch
@@ -85,8 +77,9 @@ def _position_and_angle(predicted, actual):
 
 def shared_dual_stream(model, lr=1e-3):
     """
-    upper part of network for pose regression. Outputs pose and two scalar
-    values used when computing the learning loss.
+    My own network design. Attempt to separate the regression of position
+    and orientation into separate streams while still sharing the information
+    of what the other stream is doing.
     """
     net = model['PrePool']
 
@@ -150,15 +143,15 @@ def shared_dual_stream(model, lr=1e-3):
 
     logits = tf.concat((loc, ori), axis=1)
 
-    model['x_scale'] = tf.placeholder(tf.float32)
+    s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
 
-    model['q_scale'] = tf.placeholder(tf.float32)
+    s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
 
     loss = _distance_with_learned_scale(
         predicted=logits,
         actual=model['labels'],
-        s_x=model['x_scale'],
-        s_q=model['q_scale']
+        s_x=s_x,
+        s_q=s_q
     )
 
     distance = _position_and_angle(
@@ -223,16 +216,15 @@ def decode_dual_stream(model, lr=1e-3):
 
     logits = tf.concat((loc, ori), axis=1)
 
-    model['x_scale'] = tf.placeholder(tf.float32)
+    s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
 
-    model['q_scale'] = tf.placeholder(tf.float32)
-
+    s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
 
     loss = _distance_with_learned_scale(
         predicted=logits,
-        actual=model['labels'],
-        s_x=model['x_scale'],
-        s_q=model['q_scale']
+        actual=model['labels']#,
+        s_x=s_x,
+        s_q=s_q
     )
 
     model['acc'] = _position_and_angle(
@@ -240,6 +232,8 @@ def decode_dual_stream(model, lr=1e-3):
         actual=model['labels']
     )
 
+    # will optimize s_x and s_q because they are in GraphKeys.Trainable
+    # even they aren't really in the network.
     model['step'] = tf.train.AdamOptimizer(
         learning_rate=lr
     ).minimize(loss)
