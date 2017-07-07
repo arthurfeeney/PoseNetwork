@@ -152,13 +152,13 @@ def load_test_data(scene, size):
                     dtype=float
                 )
     pls = np.empty(shape=[size, 7], dtype=float)
-    begin = 0
 
     with open(data_path + 'TestSplit.txt') as split_file:
         split = []
         for num in split_file:
             split.append(int(num[-2]) - 1) # -2 because of '\n'.
 
+    begin = 0
     for i in split:
         images_batch = [None]*_images_per_file
         pls_batch = [None]*_images_per_file

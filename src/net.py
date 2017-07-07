@@ -3,31 +3,35 @@ import numpy as np
 
 slim = tf.contrib.slim
 
-def euclidean_distance(predicted, actual, scale = 10):
+def euclidean_distance(predicted, actual, scale = 6):
     """
     computes the sum of the euclidean distance between the predicted and actual
     position and orientation. -> dist(pos) + scale * dist(ori)
     """
-    x, q = tf.split(predicted, [3,4], axis=0)
-    x_, q_ = tf.split(actual, [3,4], axis=0)
+    x, q = tf.split(predicted, [3,4], axis=1)
+    x_, q_ = tf.split(actual, [3,4], axis=1)
 
     b = tf.constant(scale, dtype=tf.float32)
 
-    return tf.norm(x_ - x) + \
-           tf.multiply(b, tf.norm(q_ - tf.divide(q, tf.norm(q))))
+    return tf.norm(x_ - x, asxis=1) + \
+           tf.multiply(
+                   b,
+                   tf.norm(q_ - tf.divide(
+                                    q,
+                                    tf.norm(q, axis=1, keep_dims=True)
+                                    ),
+                          axis=1
+                          )
+            )
 
 # from geometric loss functions paper
-def distance_with_learned_scale(predicted, actual):
+def _distance_with_learned_scale(predicted, actual, s_x, s_q):
     """
     loss function learns a scale between position and orientation.
-    Use axis one so that the function is applied to each element of the batch
+    Uses axis one so that the function is applied to each element of the batch
     and not to the batch itself.
     """
-    position, orientation = tf.split(predicted, [4,5], axis=1)
-
-    x, s_x = tf.split(position, [3,1], axis=1)
-
-    q, s_q = tf.split(orientation, [4,1], axis=1)
+    x, q = tf.split(predicted, [3,4], axis=1)
 
     x_, q_ = tf.split(actual, [3,4], axis=1)
 
@@ -53,27 +57,13 @@ def distance_with_learned_scale(predicted, actual):
 
     return tf.add(loss_pos, loss_ori)
 
-def _get_orientation_error(q1, q2):
-    """
-    converts the quaternion to angle radian. Better than just using
-    the norm of the two for global comparisons. Maybe use this in the loss?
-    """
-
-    angle = tf.norm(q1 - q2, axis=1)
-
-    return angle
-
-def position_and_angle(predicted, actual):
+def _position_and_angle(predicted, actual):
     """
     computes the position and angle error for printing and test accuracy.
     it uses axis 1 to apply function to each element of batch.
     The math functions should all be element wise already.
     """
-    position, orientation = tf.split(predicted, [4,5], axis=1)
-
-    x, _ = tf.split(position, [3,1], axis=1)
-
-    q, _ = tf.split(orientation, [4,1], axis=1)
+    x, q = tf.split(predicted, [3,4], axis=1)
 
     x_, q_ = tf.split(actual, [3,4], axis=1)
 
@@ -83,7 +73,7 @@ def position_and_angle(predicted, actual):
 
     unit_q = tf.divide(q, norm_q)
 
-    radian_angle = tf.abs(_get_orientation_error(q_, unit_q))
+    radian_angle = tf.abs(tf.norm(q_ - unit_q, axis=1))
 
     angle = tf.divide(tf.multiply(radian_angle, 180.0), np.pi)
 
@@ -149,23 +139,29 @@ def shared_dual_stream(model, lr=1e-3):
     ori_and_share_loc = tf.add(ori_1, tf.multiply(loc_1, 0.3))
 
     loc = slim.fully_connected(loc_and_share_ori,
-                               4,
+                               3,
                                activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     ori = slim.fully_connected(ori_and_share_loc,
-                               5,
+                               4,
                                activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     logits = tf.concat((loc, ori), axis=1)
 
-    loss = distance_with_learned_scale(
+    model['x_scale'] = tf.placeholder(tf.float32)
+
+    model['q_scale'] = tf.placeholder(tf.float32)
+
+    loss = _distance_with_learned_scale(
         predicted=logits,
-        actual=model['labels']
+        actual=model['labels'],
+        s_x=model['x_scale'],
+        s_q=model['q_scale']
     )
 
-    distance = position_and_angle(
+    distance = _position_and_angle(
         predicted=logits,
         actual=model['labels']
     )
@@ -197,7 +193,7 @@ def decode_dual_stream(model, lr=1e-3):
                                 normalizer_fn=slim.batch_norm)
 
     net = slim.conv2d_transpose(net,
-                                384),
+                                384,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
@@ -216,23 +212,30 @@ def decode_dual_stream(model, lr=1e-3):
                                normalizer_fn=slim.batch_norm)
 
     loc = slim.fully_connected(net,
-                               4,
+                               3,
                                activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     ori = slim.fully_connected(net,
-                               5,
+                               4,
                                activation_fn=None,
                                normalizer_fn=slim.batch_norm)
 
     logits = tf.concat((loc, ori), axis=1)
 
-    loss = distance_with_learned_scale(
+    model['x_scale'] = tf.placeholder(tf.float32)
+
+    model['q_scale'] = tf.placeholder(tf.float32)
+
+
+    loss = _distance_with_learned_scale(
         predicted=logits,
-        actual=model['labels']
+        actual=model['labels'],
+        s_x=model['x_scale'],
+        s_q=model['q_scale']
     )
 
-    model['acc'] = position_and_angle(
+    model['acc'] = _position_and_angle(
         predicted=logits,
         actual=model['labels']
     )
@@ -240,4 +243,11 @@ def decode_dual_stream(model, lr=1e-3):
     model['step'] = tf.train.AdamOptimizer(
         learning_rate=lr
     ).minimize(loss)
+
+
+
+
+
+
+
 

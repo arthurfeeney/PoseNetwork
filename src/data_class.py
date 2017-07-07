@@ -8,7 +8,7 @@ class Data:
         self.__test_images = test_data[0]
         self.__test_labels = test_data[1]
         self.__last_batch_end = 0
-        self.__num_train_images = len(self.__train_images)
+        self.__num_train_images = len(self.__train_labels)
         self.__num_test_images = len(self.__test_labels)
 
     def train_size(self):
@@ -17,7 +17,7 @@ class Data:
     def test_size(self):
         return self.__num_test_images
 
-    def reset_batch():
+    def reset_batch(self):
         self.__last_batch_end = 0
 
     def get_next_batch(self, batch_size, get_test=False):

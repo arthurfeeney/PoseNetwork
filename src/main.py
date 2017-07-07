@@ -25,7 +25,7 @@ def main():
 
     data = Data(train_data, test_data)
 
-    with tf.device('/gpu:0'):
+    with tf.device('/cpu:0'):
         input_tensor = tf.placeholder(
                         tf.float32,
                         shape=[None,480,640,3])
@@ -46,7 +46,7 @@ def main():
         exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
         variables_to_restore = slim.get_variables_to_restore(exclude = exclude)
 
-        shared_dual_stream(end_points, lr=1e-4)
+        decode_dual_stream(end_points, lr=1e-4)
 
         end_points['input_tensor'] = input_tensor
         end_points['feed_tensor'] = feed_tensor
@@ -57,19 +57,19 @@ def main():
           variables_to_restore,
           checkpoint_file,
           data,
-          batch_size=32,
-          num_epochs=90,
+          batch_size=40,
+          num_epochs=2,
           verbose=True)
 
     print('finished training')
 
     print('starting testing')
 
-    error = test(end_points, data)
+    distance_error, angle_error = test(end_points, data)
 
     print('finished testing')
 
-    print('distance: ' + str(error[0]) + ' angle: ' + str(error[1]))
+    print('distance: ' + str(distance_error) + ' angle: ' + str(angle_error))
 
 def feed_helper(end_points,
                 images,
@@ -78,12 +78,14 @@ def feed_helper(end_points,
                 image_size=299):
 
     offset_height, offset_width = 0, 0
+
     if random_crop:
         offset_height=np.random.randint(low=0, high=480-image_size)
         offset_width=np.random.randint(low=0, high=640-image_size)
     else:
         offset_height=int((480-image_size)/2)
         offset_width=int((640-image_size)/2)
+
     resize = tf.image.crop_to_bounding_box(
         image=end_points['input_tensor'],
         offset_height=offset_height,
@@ -91,6 +93,7 @@ def feed_helper(end_points,
         target_height=image_size,
         target_width=image_size
     )
+
     return {
         end_points['upper_input']: end_points['PrePool'].eval(
             feed_dict = {
@@ -101,7 +104,7 @@ def feed_helper(end_points,
                 )
             }
         ),
-        end_points['labels']: labels
+       end_points['labels']: labels
     }
 
 def train(end_points,
@@ -111,6 +114,8 @@ def train(end_points,
           image_size=299,
           num_epochs=1,
           batch_size=32,
+          s_x=0.0,
+          s_q=-3.0,
           verbose=False):
 
     with tf.Session() as sess:
@@ -125,7 +130,7 @@ def train(end_points,
         loader.restore(sess, checkpoint_file)
 
         for epoch in range(num_epochs):
-            for step in range(0, data.train_size()-batch_size-1, batch_size):
+            for step in range(0, data.train_size(), batch_size):
                 if epoch != 0:
                     data.shuffle()
 
@@ -140,8 +145,13 @@ def train(end_points,
                     print('epoch: ' + str(epoch) + ' step: ' + \
                           str(step) + ' acc: ' + str(batch_acc))
 
+
+                feed_dict = feed_helper(end_points, images, labels)
+                feed_dict.update({end_points['x_scale']: s_x})
+                feed_dict.update({end_points['q_scale']: s_q})
+
                 end_points['step'].run(
-                    feed_dict=feed_helper(end_points, images, labels)
+                    feed_dict=feed_dict
                 )
 
         saver.save(sess,
@@ -169,17 +179,17 @@ def test(end_points,
 
         data.reset_batch()
 
-        for i in range(data.test_size()-batch_size-1):
+        for i in range(0, data.test_size(), batch_size):
             count += 1
 
             images, labels = data.get_next_batch(batch_size, get_test=True)
 
             acc += end_points['acc'].eval(
-                feed_dict=feed_helper(end_points,
+                feed_dict=dict(feed_helper(end_points,
                                       images,
                                       labels,
                                       random_crop=False,
-                                      image_size=image_size)
+                                      image_size=image_size))
             )
 
             if verbose:
