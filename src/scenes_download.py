@@ -34,9 +34,10 @@ def _load_data(filename):
     # Load an image
     load_image = Image.open(data_path + filename)
 
+    # convert image to a numpy array
     image = np.asarray(load_image)
 
-    # preprocess the image to the range that the model expects.
+    # preprocess the image to the range that the model expects. [-1, 1]
     image = 2 * (image / 255.0) - 1.0
 
     return image
@@ -60,7 +61,6 @@ def _load_pls(filename):
     q = [0.0 for _ in range(4)]
 
     # convert rotation matrix to quaternion
-
     trace = m[0][0] + m[1][1] + m[2][2]
 
     if trace > 0:

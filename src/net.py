@@ -17,7 +17,7 @@ def euclidean_distance(predicted, actual, scale = 6):
            (b * tf.norm(q_ - (q / tf.norm(q, axis=1, keep_dims=True)),axis=1))
 
 # from geometric loss functions paper
-def _distance_with_learned_scale(predicted, actual, s_x=2.0, s_q=2.0):
+def _distance_with_learned_scale(predicted, actual, s_x, s_q):
     """
     loss function learns a scale between position and orientation.
     Uses axis one so that the function is applied to each element of the batch
@@ -222,7 +222,7 @@ def decode_dual_stream(model, lr=1e-3):
 
     loss = _distance_with_learned_scale(
         predicted=logits,
-        actual=model['labels']#,
+        actual=model['labels'],
         s_x=s_x,
         s_q=s_q
     )
@@ -232,16 +232,7 @@ def decode_dual_stream(model, lr=1e-3):
         actual=model['labels']
     )
 
-    # will optimize s_x and s_q because they are in GraphKeys.Trainable
-    # even they aren't really in the network.
     model['step'] = tf.train.AdamOptimizer(
         learning_rate=lr
     ).minimize(loss)
-
-
-
-
-
-
-
 

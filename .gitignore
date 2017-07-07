@@ -1,4 +1,6 @@
 
+*.e*
+*.o*
 *.sh
 
 # Byte-compiled / optimized / DLL files

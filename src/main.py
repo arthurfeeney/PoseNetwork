@@ -58,18 +58,18 @@ def main():
           checkpoint_file,
           data,
           batch_size=40,
-          num_epochs=2,
+          num_epochs=90,
           verbose=True)
 
     print('finished training')
 
-    #print('starting testing')
+    print('starting testing')
 
-    #distance_error, angle_error = test(end_points, data)
+    distance_error, angle_error = test(end_points, data)
 
-    #print('finished testing')
+    print('finished testing')
 
-    #print('distance: ' + str(distance_error) + ' angle: ' + str(angle_error))
+    print('distance: ' + str(distance_error) + ' angle: ' + str(angle_error))
 
 def feed_helper(end_points,
                 images,
@@ -116,7 +116,7 @@ def train(end_points,
           batch_size=32,
           verbose=False):
 
-    with tf.Session() as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
 
@@ -160,7 +160,7 @@ def test(end_points,
          batch_size=1,
          verbose=False):
 
-    with tf.Session() as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         # meta-graph location should be passed in.
         loader = tf.train.import_meta_graph(
             '/data/zhanglab/afeeney/chess_test-0.meta'
