@@ -21,8 +21,8 @@ def set_data_path(path):
     global data_path
     data_path = path
 
-img_height = 480
-img_width = 640
+img_height = 299
+img_width = 399
 
 num_channels = 3
 
@@ -34,8 +34,12 @@ def _load_data(filename):
     # Load an image
     load_image = Image.open(data_path + filename)
 
+    #rescale the image.
+
+    re_image = load_image.resize((399, 299))
+
     # convert image to a numpy array
-    image = np.asarray(load_image)
+    image = np.asarray(re_image)
 
     # preprocess the image to the range that the model expects. [-1, 1]
     image = 2 * (image / 255.0) - 1.0

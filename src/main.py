@@ -26,20 +26,16 @@ def main():
     data = Data(train_data, test_data)
 
     with tf.device('/gpu:0'):
-        input_tensor = tf.placeholder(
-                        tf.float32,
-                        shape=[None,480,640,3])
+        input_tensor = tf.placeholder(tf.float32, shape=[None,299,399,3])
 
-        feed_tensor = tf.placeholder(
-                        tf.float32,
-                        shape=[None,image_size,image_size,3])
+        feed_tensor = tf.placeholder(tf.float32,
+                                     shape=[None,image_size,image_size,3])
 
         arg_scope = inception_resnet_v2_arg_scope()
         with slim.arg_scope(arg_scope):
-            logits, end_points = inception_resnet_v2(
-                                        feed_tensor,
-                                        num_classes=num_classes,
-                                        is_training=True)
+            logits, end_points = inception_resnet_v2(feed_tensor,
+                                                     num_classes=num_classes,
+                                                     is_training=True)
 
         end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
 
@@ -58,7 +54,7 @@ def main():
           checkpoint_file,
           data,
           batch_size=40,
-          num_epochs=90,
+          num_epochs=20,
           verbose=True)
 
     print('finished training')
@@ -74,17 +70,16 @@ def main():
 def feed_helper(end_points,
                 images,
                 labels,
+                keep_prob=0.5,
                 random_crop=True,
                 image_size=299):
 
     offset_height, offset_width = 0, 0
 
     if random_crop:
-        offset_height=np.random.randint(low=0, high=480-image_size)
-        offset_width=np.random.randint(low=0, high=640-image_size)
+        offset_width=np.random.randint(low=0, high=399-image_size)
     else:
-        offset_height=int((480-image_size)/2)
-        offset_width=int((640-image_size)/2)
+        offset_width=int((399-image_size)/2)
 
     resize = tf.image.crop_to_bounding_box(
         image=end_points['input_tensor'],
@@ -95,7 +90,7 @@ def feed_helper(end_points,
     )
 
     return {
-        end_points['upper_input']: end_points['PrePool'].eval(
+        end_points['upper_input']: end_points['Conv2d_7b_1x1'].eval(
             feed_dict = {
                 end_points['feed_tensor']: resize.eval(
                     feed_dict = {
@@ -104,7 +99,8 @@ def feed_helper(end_points,
                 )
             }
         ),
-        end_points['labels']: labels
+        end_points['labels']: labels,
+        end_points['keep_prob']: keep_prob
     }
 
 def train(end_points,
@@ -115,7 +111,6 @@ def train(end_points,
           num_epochs=1,
           batch_size=32,
           verbose=False):
-
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -136,18 +131,13 @@ def train(end_points,
 
                 if verbose and step % (20 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
-                        feed_dict = feed_helper(end_points,
-                                                images,
-                                                labels)
+                        feed_dict=feed_helper(end_points, images, labels)
                     )
                     print('epoch: ' + str(epoch) + ' step: ' + \
                           str(step) + ' acc: ' + str(batch_acc))
 
-
-                feed_dict = feed_helper(end_points, images, labels)
-
                 end_points['step'].run(
-                    feed_dict=feed_dict
+                    feed_dict=feed_helper(end_points, images, labels)
                 )
 
         saver.save(sess,
@@ -159,9 +149,7 @@ def test(end_points,
          image_size=299,
          batch_size=1,
          verbose=False):
-
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        # meta-graph location should be passed in.
         loader = tf.train.import_meta_graph(
             '/data/zhanglab/afeeney/chess_test-0.meta'
         )
@@ -174,17 +162,16 @@ def test(end_points,
 
         data.reset_batch()
 
+
         for i in range(0, data.test_size(), batch_size):
-            count += 1
+            count += batch_size
 
             images, labels = data.get_next_batch(batch_size, get_test=True)
 
             acc += end_points['acc'].eval(
-                feed_dict=dict(feed_helper(end_points,
-                                      images,
-                                      labels,
-                                      random_crop=False,
-                                      image_size=image_size))
+                feed_dict=feed_helper(end_points, images, labels,
+                                      random_crop=False, image_size=image_size,
+                                      keep_prob=1.0)
             )
 
             if verbose:

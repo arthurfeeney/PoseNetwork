@@ -27,27 +27,15 @@ def _distance_with_learned_scale(predicted, actual, s_x, s_q):
 
     x_, q_ = tf.split(actual, [3,4], axis=1)
 
-    loss_pos = tf.add(
-                    tf.multiply(
-                        tf.norm(tf.subtract(x_, x), axis=1),
-                        tf.exp(-s_x)
-                    ),
-                    s_x
-                )
+    loss_pos = (tf.norm(x_ - x, ord=1, axis=1) * tf.exp(-s_x)) + s_x
 
     norm_q = tf.norm(q, axis=1, keep_dims=True)
 
     unit_q = tf.divide(q, norm_q)
 
-    loss_ori = tf.add(
-                tf.multiply(
-                    tf.norm(tf.subtract(q_, unit_q), axis=1),
-                    tf.exp(-s_q)
-                ),
-                s_q
-            )
+    loss_ori = (tf.norm(q_ - unit_q, ord=1, axis=1) * tf.exp(-s_q)) + s_q
 
-    return tf.add(loss_pos, loss_ori)
+    return loss_pos + loss_ori
 
 def _position_and_angle(predicted, actual):
     """
@@ -59,7 +47,7 @@ def _position_and_angle(predicted, actual):
 
     x_, q_ = tf.split(actual, [3,4], axis=1)
 
-    distance = tf.norm(tf.subtract(x_, x), axis=1)
+    distance = tf.norm(x_ - x, axis=1)
 
     norm_q = tf.norm(q, axis=1, keep_dims=True)
 
@@ -75,7 +63,7 @@ def _position_and_angle(predicted, actual):
            )
 
 
-def shared_dual_stream(model, lr=1e-3):
+def shared_dual_stream(model, lr=1e-4):
     """
     My own network design. Attempt to separate the regression of position
     and orientation into separate streams while still sharing the information
@@ -85,63 +73,50 @@ def shared_dual_stream(model, lr=1e-3):
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
 
-    net = slim.conv2d_transpose(model['upper_input'],
+
+    with tf.variable_scope('decode_tower'):
+        net = slim.conv2d_transpose(model['upper_input'],
                                 768,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
-    net = slim.conv2d_transpose(net,
+        net = slim.conv2d_transpose(net,
                                 384,
                                 (4,4),
                                 stride=2,
                                 normalizer_fn=slim.batch_norm)
 
-    left_1 = slim.conv2d(net,
-                         20,
-                         (3,3),
-                         stride=1,
-                         normalizer_fn=slim.batch_norm)
+    with tf.variable_scope('loc_and_ori_stream'):
+        left = slim.conv2d(net, 20, (3,3), stride=1,
+                           normalizer_fn=slim.batch_norm)
 
-    right_1 = slim.conv2d(net,
-                          20,
-                          (3,3),
-                          stride=1,
-                          normalizer_fn=slim.batch_norm)
+        right = slim.conv2d(net, 20, (3,3), stride=1,
+                            normalizer_fn=slim.batch_norm)
 
-    left_and_share_right = tf.add(left_1, tf.multiply(right_1, 0.3))
+        loc_1 = slim.fully_connected(left, 512, activation_fn=None,
+                                     normalizer_fn=slim.batch_norm)
 
-    right_and_share_left = tf.add(right_1, tf.multiply(left_1, 0.3))
+        ori_1 = slim.fully_connected(right, 512, activation_fn=None,
+                                     normalizer_fn=slim.batch_norm)
 
-    loc_input = slim.flatten(left_and_share_right)
 
-    ori_input = slim.flatten(right_and_share_left)
+        osr = tf.Variable(0.5, dtype=tf.float32, trainable=True)
 
-    loc_1 = slim.fully_connected(loc_input,
-                                 512,
-                                 activation_fn=None,
-                                 normalizer_fn=slim.batch_norm)
+        loc_and_share_ori = loc_1 + (ori_1 * tf.exp(-osr)) + osr
 
-    ori_1 = slim.fully_connected(ori_input,
-                                 512,
-                                 activation_fn=None,
-                                 normalizer_fn=slim.batch_norm)
+        lsr = tf.Variable(0.5, dtype=tf.float32, trainable=True)
 
-    loc_and_share_ori = tf.add(loc_1, tf.multiply(ori_1, 0.3))
+        ori_and_share_loc = ori_1 + (loc_1 * tf.exp(-lsr)) + lsr
 
-    ori_and_share_loc = tf.add(ori_1, tf.multiply(loc_1, 0.3))
+    with tf.variable_scope('Logits'):
+        loc = slim.fully_connected(loc_and_share_ori, 3, activation_fn=None,
+                                   normalizer_fn=slim.batch_norm)
 
-    loc = slim.fully_connected(loc_and_share_ori,
-                               3,
-                               activation_fn=None,
-                               normalizer_fn=slim.batch_norm)
+        ori = slim.fully_connected(ori_and_share_loc, 4, activation_fn=None,
+                                   normalizer_fn=slim.batch_norm)
 
-    ori = slim.fully_connected(ori_and_share_loc,
-                               4,
-                               activation_fn=None,
-                               normalizer_fn=slim.batch_norm)
-
-    logits = tf.concat((loc, ori), axis=1)
+        logits = tf.concat((loc, ori), axis=1)
 
     s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
 
@@ -165,54 +140,39 @@ def shared_dual_stream(model, lr=1e-3):
 
     model['acc'] = distance
 
-def decode_dual_stream(model, lr=1e-3):
+def decode_dual_stream(model, lr=1e-4):
     """
     Implementation of network from the hourglass networks paper.
     """
-    net = model['PrePool']
+    net = model['Conv2d_7b_1x1']
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
 
-    net = slim.conv2d_transpose(model['upper_input'],
-                                net.get_shape()[3],
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
+    model['keep_prob'] = tf.placeholder(tf.float32)
 
-    net = slim.conv2d_transpose(net,
-                                768,
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
+    with slim.arg_scope([slim.conv2d_transpose, slim.conv2d],
+                        normalizer_fn=slim.batch_norm):
 
-    net = slim.conv2d_transpose(net,
-                                384,
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
+        net = slim.conv2d_transpose(model['upper_input'], net.get_shape()[3],
+                                    (4,4), stride=2)
 
-    net = slim.conv2d(net,
-                      32,
-                      (3,3),
-                      stride=1,
-                      normalizer_fn=slim.batch_norm)
+        net = slim.conv2d_transpose(net, 768, (4,4), stride=2)
 
-    net = slim.flatten(net)
+        net = slim.conv2d_transpose(net, 384, (4,4), stride=2)
 
-    net = slim.fully_connected(net,
-                               1024,
-                               activation_fn=None,
-                               normalizer_fn=slim.batch_norm)
+        net = slim.conv2d(net, 32, (3,3), stride=1, padding='VALID')
 
-    loc = slim.fully_connected(net,
-                               3,
-                               activation_fn=None,
-                               normalizer_fn=slim.batch_norm)
+        net = slim.flatten(net)
 
-    ori = slim.fully_connected(net,
-                               4,
-                               activation_fn=None,
-                               normalizer_fn=slim.batch_norm)
+    net = slim.fully_connected(net, 1024)
+
+    net = slim.dropout(net, keep_prob=model['keep_prob'])
+
+    with slim.arg_scope([slim.fully_connected], activation_fn=None):
+
+        loc = slim.fully_connected(net, 3)
+
+        ori = slim.fully_connected(net, 4)
 
     logits = tf.concat((loc, ori), axis=1)
 
@@ -220,19 +180,15 @@ def decode_dual_stream(model, lr=1e-3):
 
     s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
 
-    loss = _distance_with_learned_scale(
-        predicted=logits,
-        actual=model['labels'],
-        s_x=s_x,
-        s_q=s_q
-    )
+    loss = _distance_with_learned_scale(predicted=logits,
+                                        actual=model['labels'],
+                                        s_x=s_x, s_q=s_q)
 
-    model['acc'] = _position_and_angle(
-        predicted=logits,
-        actual=model['labels']
-    )
+    model['acc'] = _position_and_angle(predicted=logits,
+                                       actual=model['labels'])
 
     model['step'] = tf.train.AdamOptimizer(
-        learning_rate=lr
+        learning_rate=lr,
+        epsilon=1e-6
     ).minimize(loss)
 
