@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-slim = tf.contrib.slim
+layers = tf.contrib.layers
 
 def euclidean_distance(predicted, actual, scale = 6):
     """
@@ -140,7 +140,7 @@ def shared_dual_stream(model, lr=1e-4):
 
     model['acc'] = distance
 
-def decode_dual_stream(model, lr=1e-4):
+def decode_dual_stream(model, lr=1e-4, reuse=None):
     """
     Implementation of network from the hourglass networks paper.
     """
@@ -150,45 +150,68 @@ def decode_dual_stream(model, lr=1e-4):
 
     model['keep_prob'] = tf.placeholder(tf.float32)
 
-    with slim.arg_scope([slim.conv2d_transpose, slim.conv2d],
-                        normalizer_fn=slim.batch_norm):
+    model['is_training'] = tf.placeholder(tf.bool)
 
-        net = slim.conv2d_transpose(model['upper_input'], net.get_shape()[3],
+    with tf.variable_scope('model', reuse=reuse):
+
+        net = layers.conv2d_transpose(model['upper_input'], net.get_shape()[3],
                                     (4,4), stride=2)
+        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+                                reuse=reuse, scope='b1',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-        net = slim.conv2d_transpose(net, 768, (4,4), stride=2)
+        net = layers.conv2d_transpose(net, 768, (4,4), stride=2)
 
-        net = slim.conv2d_transpose(net, 384, (4,4), stride=2)
+        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+                                reuse=reuse, scope='b2',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-        net = slim.conv2d(net, 32, (3,3), stride=1, padding='VALID')
+        net = layers.conv2d_transpose(net, 384, (4,4), stride=2)
+        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+                                reuse=reuse, scope='b3',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-        net = slim.flatten(net)
+        net = layers.conv2d(net, 32, (3,3), stride=1, padding='VALID')
+        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+                                reuse=reuse, scope='b4',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-    net = slim.fully_connected(net, 1024)
+        net = layers.flatten(net)
 
-    net = slim.dropout(net, keep_prob=model['keep_prob'])
+        net = tf.layers.dense(net, 1024)
+        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+                                reuse=reuse, scope='b5',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-    with slim.arg_scope([slim.fully_connected], activation_fn=None):
+        net = layers.dropout(net, keep_prob=model['keep_prob'])
 
-        loc = slim.fully_connected(net, 3)
+        loc = tf.layers.dense(net, 3)
 
-        ori = slim.fully_connected(net, 4)
+        ori = tf.layers.dense(net, 4)
 
-    logits = tf.concat((loc, ori), axis=1)
+        logits = tf.concat((loc, ori), axis=1)
 
-    s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
+        s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
 
-    s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
+        s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
 
-    loss = _distance_with_learned_scale(predicted=logits,
+        loss = _distance_with_learned_scale(predicted=logits,
                                         actual=model['labels'],
                                         s_x=s_x, s_q=s_q)
 
-    model['acc'] = _position_and_angle(predicted=logits,
+        model['acc'] = _position_and_angle(predicted=logits,
                                        actual=model['labels'])
 
-    model['step'] = tf.train.AdamOptimizer(
-        learning_rate=lr,
-        epsilon=1e-6
-    ).minimize(loss)
+    update = 'qwop'
+    if reuse is None:
+        update = tf.train.AdamOptimizer(
+            learning_rate=lr,
+            epsilon=1e-6
+        ).minimize(loss)
+    return update
 

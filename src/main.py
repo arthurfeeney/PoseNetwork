@@ -42,8 +42,6 @@ def main():
         exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
         variables_to_restore = slim.get_variables_to_restore(exclude=exclude)
 
-        decode_dual_stream(end_points, lr=1e-4)
-
         end_points['input_tensor'] = input_tensor
         end_points['feed_tensor'] = feed_tensor
 
@@ -54,7 +52,7 @@ def main():
           checkpoint_file,
           data,
           batch_size=40,
-          num_epochs=20,
+          num_epochs=120,
           verbose=True)
 
     print('finished training')
@@ -70,6 +68,7 @@ def main():
 def feed_helper(end_points,
                 images,
                 labels,
+                is_training=True,
                 keep_prob=0.5,
                 random_crop=True,
                 image_size=299):
@@ -100,7 +99,8 @@ def feed_helper(end_points,
             }
         ),
         end_points['labels']: labels,
-        end_points['keep_prob']: keep_prob
+        end_points['keep_prob']: keep_prob,
+        end_points['is_training']: is_training
     }
 
 def train(end_points,
@@ -111,6 +111,8 @@ def train(end_points,
           num_epochs=1,
           batch_size=32,
           verbose=False):
+    with tf.device('/gpu:0'):
+        update = decode_dual_stream(end_points)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -136,7 +138,7 @@ def train(end_points,
                     print('epoch: ' + str(epoch) + ' step: ' + \
                           str(step) + ' acc: ' + str(batch_acc))
 
-                end_points['step'].run(
+                update.run(
                     feed_dict=feed_helper(end_points, images, labels)
                 )
 
@@ -149,10 +151,10 @@ def test(end_points,
          image_size=299,
          batch_size=1,
          verbose=False):
+    loader = tf.train.Saver()
+    with tf.device('/gpu:0'):
+        _ = decode_dual_stream(end_points, reuse=True)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        loader = tf.train.import_meta_graph(
-            '/data/zhanglab/afeeney/chess_test-0.meta'
-        )
         loader.restore(sess, tf.train.latest_checkpoint(
             '/data/zhanglab/afeeney/'
         ))
@@ -171,7 +173,7 @@ def test(end_points,
             acc += end_points['acc'].eval(
                 feed_dict=feed_helper(end_points, images, labels,
                                       random_crop=False, image_size=image_size,
-                                      keep_prob=1.0)
+                                      keep_prob=1.0, is_training=False)
             )
 
             if verbose:

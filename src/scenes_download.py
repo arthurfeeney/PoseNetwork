@@ -34,8 +34,7 @@ def _load_data(filename):
     # Load an image
     load_image = Image.open(data_path + filename)
 
-    #rescale the image.
-
+    #rescale the image so the smallest side is 299
     re_image = load_image.resize((399, 299))
 
     # convert image to a numpy array
@@ -68,7 +67,7 @@ def _load_pls(filename):
     trace = m[0][0] + m[1][1] + m[2][2]
 
     if trace > 0:
-        s = .5
+        s = .5 / math.sqrt(trace + 1.0)
         q[0] = .25 / s
         q[1] = (m[2][1] - m[1][2]) * s
         q[2] = (m[0][2] - m[2][0]) * s
@@ -92,8 +91,6 @@ def _load_pls(filename):
             q[1] = (m[0][2] + m[2][0]) / s
             q[2] = (m[1][2] + m[2][1]) / s
             q[3] = .25 * s
-
-    q = q / np.linalg.norm(q) # make sure that it is unit length
 
     label = np.concatenate((location, q))
 
