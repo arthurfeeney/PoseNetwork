@@ -62,8 +62,26 @@ def _position_and_angle(predicted, actual):
                 axis=0
            )
 
+def _stream(input, scope_name, reuse, is_training):
+    stream = layers.conv2d(input, 32, [3,3], stride=1, padding='SAME')
+    stream = layers.batch_norm(stream, decay=.95, updates_collections=None,
+                               reuse=reuse, scope=scope_name+str(1),
+                               is_training=is_training)
+    stream = tf.nn.relu(stream)
+    stream = layers.conv2d(stream, 32, [3,3], stride=1, padding='SAME')
+    stream = layers.batch_norm(stream, decay=.95, updates_collections=None,
+                               reuse=reuse, scope=scope_name+str(2),
+                               is_training=is_training)
+    stream = tf.nn.relu(stream)
+    stream = layers.flatten(stream)
+    stream = layers.dense(stream, 1024)
+    output = layers.batch_norm(stream, decay=.95, updates_collections=None,
+                               reuse=reuse, scope=scope_name+str(1),
+                               is_training=is_training)
+    tf.nn.relu(output)
+    return output
 
-def shared_dual_stream(model, lr=1e-4):
+def shared_dual_stream(model, lr=1e-4, reuse=False):
     """
     My own network design. Attempt to separate the regression of position
     and orientation into separate streams while still sharing the information
@@ -73,74 +91,66 @@ def shared_dual_stream(model, lr=1e-4):
 
     model['upper_input'] = tf.placeholder(tf.float32, shape=net.get_shape())
 
+    model['keep_prob'] = tf.placeholder(tf.float32)
 
-    with tf.variable_scope('decode_tower'):
-        net = slim.conv2d_transpose(model['upper_input'],
-                                768,
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
+    model['is_training'] = tf.placeholder(tf.bool)
 
-        net = slim.conv2d_transpose(net,
-                                384,
-                                (4,4),
-                                stride=2,
-                                normalizer_fn=slim.batch_norm)
+    with tf.variable_scope('model', reuse=reuse):
 
-    with tf.variable_scope('loc_and_ori_stream'):
-        left = slim.conv2d(net, 20, (3,3), stride=1,
-                           normalizer_fn=slim.batch_norm)
+        net = layers.conv2d_transpose(model['upper_input'], 768, [4,4],
+                                      stride=2)
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
+                                reuse=reuse, scope='b1',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-        right = slim.conv2d(net, 20, (3,3), stride=1,
-                            normalizer_fn=slim.batch_norm)
+        net = layers.conv2d_transpose(model['upper_input'], 384, [4,4],
+                                      stride=2)
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
+                                reuse=reuse, scope='b2',
+                                is_training=model['is_training'])
+        net = tf.nn.relu(net)
 
-        loc_1 = slim.fully_connected(left, 512, activation_fn=None,
-                                     normalizer_fn=slim.batch_norm)
+        left = _stream(net, scope_name='left', reuse=reuse,
+                       is_training=model['is_training'])
 
-        ori_1 = slim.fully_connected(right, 512, activation_fn=None,
-                                     normalizer_fn=slim.batch_norm)
+        right = _stream(net, scope_name='right', reuse=reuse,
+                        is_training=model['is_training'])
 
+        lsr = tf.Variable(.5, dtype=tf.float32, trainable=True)
+        qsr = tf.Variable(.5, dtype=tf.float32, trainable=True)
 
-        osr = tf.Variable(0.5, dtype=tf.float32, trainable=True)
+        net = ((left / (2*lsr)) + lsr) + ((right / (2*qsr)) + qsr)
 
-        loc_and_share_ori = loc_1 + (ori_1 * tf.exp(-osr)) + osr
+        net = layers.dropout(net, keep_prob=model['keep_prob'],
+                             is_training=model['is_training'])
 
-        lsr = tf.Variable(0.5, dtype=tf.float32, trainable=True)
+        loc = layers.dense(net, 3)
 
-        ori_and_share_loc = ori_1 + (loc_1 * tf.exp(-lsr)) + lsr
-
-    with tf.variable_scope('Logits'):
-        loc = slim.fully_connected(loc_and_share_ori, 3, activation_fn=None,
-                                   normalizer_fn=slim.batch_norm)
-
-        ori = slim.fully_connected(ori_and_share_loc, 4, activation_fn=None,
-                                   normalizer_fn=slim.batch_norm)
+        ori = layers.dense(net, 4)
 
         logits = tf.concat((loc, ori), axis=1)
 
-    s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
+        s_x = tf.Variable(0.0, dtype=tf.float32, trainable=True)
 
-    s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
+        s_q = tf.Variable(-3.0, dtype=tf.float32, trainable=True)
 
-    loss = _distance_with_learned_scale(
-        predicted=logits,
-        actual=model['labels'],
-        s_x=s_x,
-        s_q=s_q
-    )
+        loss = _distance_with_learned_scale(predicted=logits,
+                                            actual=model['labels'], s_x=s_x,
+                                            s_q=s_q)
 
-    distance = _position_and_angle(
-        predicted=logits,
-        actual=model['labels']
-    )
+        model['acc'] = _position_and_angle(predicted=logits,
+                                           actual=model['labels'])
 
-    model['step'] = tf.train.AdamOptimizer(
-        learning_rate=lr
-    ).minimize(loss)
+    update = 'qwop'
+    if not reuse:
+        update = tf.train.AdamOptimizer(
+            learning_rate=lr,
+            epsilon=1e-6
+        ).minimize(loss)
+    return update
 
-    model['acc'] = distance
-
-def decode_dual_stream(model, lr=1e-4, reuse=None):
+def decode_dual_stream(model, lr=1e-4, reuse=False):
     """
     Implementation of network from the hourglass networks paper.
     """
@@ -156,26 +166,26 @@ def decode_dual_stream(model, lr=1e-4, reuse=None):
 
         net = layers.conv2d_transpose(model['upper_input'], net.get_shape()[3],
                                     (4,4), stride=2)
-        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
                                 reuse=reuse, scope='b1',
                                 is_training=model['is_training'])
         net = tf.nn.relu(net)
 
         net = layers.conv2d_transpose(net, 768, (4,4), stride=2)
 
-        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
                                 reuse=reuse, scope='b2',
                                 is_training=model['is_training'])
         net = tf.nn.relu(net)
 
         net = layers.conv2d_transpose(net, 384, (4,4), stride=2)
-        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
                                 reuse=reuse, scope='b3',
                                 is_training=model['is_training'])
         net = tf.nn.relu(net)
 
-        net = layers.conv2d(net, 32, (3,3), stride=1, padding='VALID')
-        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+        net = layers.conv2d(net, 32, (3,3), stride=1, padding='SAME')
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
                                 reuse=reuse, scope='b4',
                                 is_training=model['is_training'])
         net = tf.nn.relu(net)
@@ -183,12 +193,13 @@ def decode_dual_stream(model, lr=1e-4, reuse=None):
         net = layers.flatten(net)
 
         net = tf.layers.dense(net, 1024)
-        net = layers.batch_norm(net, decay=0.99, updates_collections=None,
+        net = layers.batch_norm(net, decay=0.95, updates_collections=None,
                                 reuse=reuse, scope='b5',
                                 is_training=model['is_training'])
         net = tf.nn.relu(net)
 
-        net = layers.dropout(net, keep_prob=model['keep_prob'])
+        net = layers.dropout(net, keep_prob=model['keep_prob'],
+                             is_training=model['is_training'])
 
         loc = tf.layers.dense(net, 3)
 
@@ -208,7 +219,7 @@ def decode_dual_stream(model, lr=1e-4, reuse=None):
                                        actual=model['labels'])
 
     update = 'qwop'
-    if reuse is None:
+    if not reuse:
         update = tf.train.AdamOptimizer(
             learning_rate=lr,
             epsilon=1e-6
