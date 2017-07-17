@@ -59,11 +59,17 @@ def _load_pls(filename):
     m = np.array(file_matrix)
     m = m.astype(np.float)
 
-    location = m[0:3, -1] # gets top 3 elem in 4th col.
+    R = np.array(m[0:3, 0:3])
 
+    t = np.array(m[0:3, -1])
+
+    location = np.matmul(-np.transpose(R), t)
+
+    # convert rotation matrix to quaternion. May need transpose
     q = [0.0 for _ in range(4)]
 
-    # convert rotation matrix to quaternion
+    #m = np.transpose(R)
+
     trace = m[0][0] + m[1][1] + m[2][2]
 
     if trace > 0:
@@ -95,6 +101,7 @@ def _load_pls(filename):
     label = np.concatenate((location, q))
 
     return label
+
 
 def load_training_data(scene, size):
     global data_path

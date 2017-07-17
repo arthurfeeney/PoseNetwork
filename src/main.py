@@ -112,7 +112,7 @@ def train(end_points,
           batch_size=32,
           verbose=False):
     with tf.device('/gpu:0'):
-        update = shared_dual_stream(end_points)
+        update = decode_dual_stream(end_points)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -153,7 +153,7 @@ def test(end_points,
          verbose=False):
     loader = tf.train.Saver()
     with tf.device('/gpu:0'):
-        _ = shared_dual_stream(end_points, reuse=True)
+        _ = decode_dual_stream(end_points, reuse=True)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         loader.restore(sess, tf.train.latest_checkpoint(
             '/data/zhanglab/afeeney/'
@@ -173,7 +173,7 @@ def test(end_points,
             acc += end_points['acc'].eval(
                 feed_dict=feed_helper(end_points, images, labels,
                                       random_crop=False, image_size=image_size,
-                                      keep_prob=1.0, is_training=False)
+                                      keep_prob=.5, is_training=False)
             )
 
             if verbose:
