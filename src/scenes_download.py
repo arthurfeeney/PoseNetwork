@@ -12,6 +12,7 @@ from PIL import Image
 import re
 import math
 
+from resizeimage import resizeimage
 
 # Directory where you want to download and save the data-set.
 # Set this before you calling any functions to load data.
@@ -34,8 +35,8 @@ def _load_data(filename):
     # Load an image
     load_image = Image.open(data_path + filename)
 
-    #rescale the image so the smallest side is 299
-    re_image = load_image.resize((399, 299))
+    #rescale the image so the smallest side (height) is 299
+    re_image = resizeimage.resize_height(load_image, 299)
 
     # convert image to a numpy array
     image = np.asarray(re_image)
@@ -63,12 +64,14 @@ def _load_pls(filename):
 
     t = np.array(m[0:3, -1])
 
+    # C = -R.T * t
     location = np.matmul(-np.transpose(R), t)
 
-    # convert rotation matrix to quaternion. May need transpose
+    # convert rotation matrix to quaternion.
     q = [0.0 for _ in range(4)]
 
-    #m = np.transpose(R)
+    # R_world = R_camera transposed
+    m = np.transpose(R)
 
     trace = m[0][0] + m[1][1] + m[2][2]
 
@@ -102,21 +105,19 @@ def _load_pls(filename):
 
     return label
 
-
 def load_training_data(scene, size):
     global data_path
     data_path = data_path + scene
 
-    images = np.zeros(
-                    shape=[size, img_height, img_width,num_channels],
-                    dtype=float
-                )
+    images = np.zeros(shape=[size, img_height, img_width,num_channels],
+                      dtype=float)
     pls = np.empty(shape=[size, 7], dtype=float)
 
     with open(data_path + 'TrainSplit.txt') as split_file:
         split = []
         for num in split_file:
-            split.append(int(num[-2]) - 1) # -2 because of '\n'.
+            digits = re.sub("\D", "", str(num))
+            split.append(int(digits) - 1) # -2 because of '\n'.
 
     begin = 0
     for i in split:
@@ -126,11 +127,13 @@ def load_training_data(scene, size):
         for j in range(_images_per_file):
             zerod_j = str(j).zfill(3)
 
-            im_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.color.png'
+            seq = str(i+1).zfill(2)
+
+            im_filename='seq-'+seq+'/frame-000'+zerod_j+'.color.png'
 
             image = _load_data(filename=im_filename)
 
-            pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
+            pls_filename='seq-'+seq+'/frame-000'+zerod_j+'.pose.txt'
 
             pl = _load_pls(filename=pls_filename)
 
@@ -155,16 +158,15 @@ def load_test_data(scene, size):
     global data_path
     data_path = data_path + scene
 
-    images = np.zeros(
-                    shape=[size, img_height, img_width,num_channels],
-                    dtype=float
-                )
+    images = np.zeros(shape=[size, img_height, img_width,num_channels],
+                      dtype=float)
     pls = np.empty(shape=[size, 7], dtype=float)
 
     with open(data_path + 'TestSplit.txt') as split_file:
         split = []
         for num in split_file:
-            split.append(int(num[-2]) - 1) # -2 because of '\n'.
+            digits = re.sub("\D", "", str(num))
+            split.append(int(digits) - 1) # -2 because of '\n'.
 
     begin = 0
     for i in split:
@@ -174,11 +176,13 @@ def load_test_data(scene, size):
         for j in range(_images_per_file):
             zerod_j = str(j).zfill(3)
 
-            im_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.color.png'
+            seq = str(i + 1).zfill(2)
+
+            im_filename='seq-'+seq+'/frame-000'+zerod_j+'.color.png'
 
             image = _load_data(filename=im_filename)
 
-            pls_filename='seq-0'+str(i+1)+'/frame-000'+zerod_j+'.pose.txt'
+            pls_filename='seq-'+seq+'/frame-000'+zerod_j+'.pose.txt'
 
             pl = _load_pls(filename=pls_filename)
 

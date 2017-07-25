@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from net import shared_dual_stream, decode_dual_stream
+from net import shared_dual_stream, decode_dual_stream, simple_stream
 from data_class import Data
 from scenes_download import *
 from inception_resnet_v2 import *
@@ -12,54 +12,35 @@ def main():
 
     scenes_path = '/data/zhanglab/afeeney/7scenes/'
 
-    scene = 'chess/'
+    scene = 'heads/'
 
     image_size = 299
 
     num_classes = 7
 
     set_data_path(scenes_path)
-    train_data = load_training_data(scene, 4000)
+    train_data = load_training_data(scene, 1000)
     set_data_path(scenes_path)
-    test_data = load_test_data(scene, 2000)
+    test_data = load_test_data(scene, 1000)
 
     data = Data(train_data, test_data)
 
-    with tf.device('/gpu:0'):
-        input_tensor = tf.placeholder(tf.float32, shape=[None,299,399,3])
-
-        feed_tensor = tf.placeholder(tf.float32,
-                                     shape=[None,image_size,image_size,3])
-
-        arg_scope = inception_resnet_v2_arg_scope()
-        with slim.arg_scope(arg_scope):
-            logits, end_points = inception_resnet_v2(feed_tensor,
-                                                     num_classes=num_classes,
-                                                     is_training=True)
-
-        end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
-
-        exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
-        variables_to_restore = slim.get_variables_to_restore(exclude=exclude)
-
-        end_points['input_tensor'] = input_tensor
-        end_points['feed_tensor'] = feed_tensor
-
     print('starting training')
 
-    train(end_points,
-          variables_to_restore,
-          checkpoint_file,
+    save_location = '/data/zhanglab/afeeney/checkpoints/'
+    scene_name = scene[0:-2]
+
+    train(checkpoint_file,
+          save_location,
+          scene_name,
           data,
           batch_size=40,
-          num_epochs=120,
+          num_epochs=60,
           verbose=True)
-
-    print('finished training')
 
     print('starting testing')
 
-    distance_error, angle_error = test(end_points, data)
+    distance_error, angle_error = test(data, save_location)
 
     print('finished testing')
 
@@ -103,16 +84,37 @@ def feed_helper(end_points,
         end_points['is_training']: is_training
     }
 
-def train(end_points,
-          variables_to_restore,
-          checkpoint_file,
+def train(checkpoint_file,
+          save_location,
+          scene_name,
           data,
           image_size=299,
           num_epochs=1,
           batch_size=32,
           verbose=False):
     with tf.device('/gpu:0'):
-        update = decode_dual_stream(end_points)
+        input_tensor = tf.placeholder(tf.float32, shape=[None,299,399,3])
+
+        feed_tensor = tf.placeholder(tf.float32,
+                                     shape=[None,image_size,image_size,3])
+
+        arg_scope = inception_resnet_v2_arg_scope()
+        with slim.arg_scope(arg_scope):
+            logits, end_points = inception_resnet_v2(feed_tensor,
+                                                     num_classes=num_classes,
+                                                     is_training=True)
+
+        end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
+
+        exclude = ['InceptionResnetV2/Logits', 'InceptionResnetV2/AuxLogits']
+        variables_to_restore = slim.get_variables_to_restore(exclude=exclude)
+
+        end_points['input_tensor'] = input_tensor
+        end_points['feed_tensor'] = feed_tensor
+
+        update = shared_dual_stream(end_points)
+        #update = decode_dual_stream(end_points)
+        #update = simple_stream(end_points)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
         sess.run(tf.global_variables_initializer())
@@ -133,31 +135,48 @@ def train(end_points,
 
                 if verbose and step % (20 * batch_size) == 0:
                     batch_acc = end_points['acc'].eval(
-                        feed_dict=feed_helper(end_points, images, labels)
-                    )
+                        feed_dict=feed_helper(end_points, images, labels))
                     print('epoch: ' + str(epoch) + ' step: ' + \
                           str(step) + ' acc: ' + str(batch_acc))
 
-                update.run(
-                    feed_dict=feed_helper(end_points, images, labels)
-                )
+                update.run(feed_dict=feed_helper(end_points, images, labels))
 
         saver.save(sess,
-                   '/data/zhanglab/afeeney/chess_test',
+                   (save_location + scene_name),
                    global_step=0)
 
-def test(end_points,
-         data,
+def test(data,
+         load_location,
          image_size=299,
          batch_size=1,
          verbose=False):
     loader = tf.train.Saver()
     with tf.device('/gpu:0'):
-        _ = decode_dual_stream(end_points, reuse=True)
+        input_tensor = tf.placeholder(tf.float32, shape=[None,299,399,3])
+
+        feed_tensor = tf.placeholder(tf.float32,
+                                     shape=[None,image_size,image_size,3])
+
+        arg_scope = inception_resnet_v2_arg_scope()
+        with slim.arg_scope(arg_scope):
+            logits, end_points = inception_resnet_v2(feed_tensor,
+                 num_classes=num_classes, is_training=False, reuse=True)
+
+        end_points['labels'] = tf.placeholder(tf.float32, shape=[None, 7])
+
+        exclude = ['InceptionResnetV2/Logits',
+                  'InceptionResnetV2/AuxLogits']
+        variables_to_restore = \
+            slim.get_variables_to_restore(exclude=exclude)
+
+        end_points['input_tensor'] = input_tensor
+        end_points['feed_tensor'] = feed_tensor
+        _ = shared_dual_stream(end_points, reuse=True)
+        #_ = decode_dual_stream(end_points, reuse=True)
+        #_ = simple_stream(end_points, reuse=True)
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        loader.restore(sess, tf.train.latest_checkpoint(
-            '/data/zhanglab/afeeney/'
-        ))
+        sess.run(tf.global_variables_initializer())
+        loader.restore(sess, tf.train.latest_checkpoint(load_location))
 
         acc = np.array([0,0], dtype=np.float32)
         count = 0
@@ -173,8 +192,7 @@ def test(end_points,
             acc += end_points['acc'].eval(
                 feed_dict=feed_helper(end_points, images, labels,
                                       random_crop=False, image_size=image_size,
-                                      keep_prob=.5, is_training=False)
-            )
+                                      keep_prob=.5, is_training=False))
 
             if verbose:
                 print('count: ' + str(i) + 'acc: ' + str(acc))
